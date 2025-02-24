@@ -1,0 +1,117 @@
+import db from '../config/db.js';
+import { v4 } from 'uuid';
+import bcrypt from 'bcryptjs';
+
+import { generateToken } from '../utils/generate.js';
+
+export const register = async (req, res) => {
+    const { name, email, password } = req.body;
+
+    if (!name || !email || !password) {
+        return res.status(400).json({ message: 'Please provide name, email, and password' });
+    }
+
+    try {
+        const [existingUser] = await db.query('SELECT * FROM users WHERE email = ?', [email]);
+
+        if (existingUser.length > 0) {
+            return res.status(400).json({ message: 'Email already in use' });
+        }
+
+        const emailRegex = /\S+@\S+\.\S+/;
+
+        if (!emailRegex.test(email)) {
+            return res.status(400).json({ message: 'Invalid email' });
+        }
+
+        const hashedPassword = await bcrypt.hash(password, 10);
+
+        const userId = v4();
+        const creationDate = new Date();
+
+        await db.query(
+            'INSERT INTO users (user_id, name, email, password_hash, status, creation_date, failed_attempts) VALUES (?, ?, ?, ?, ?, ?, ?)',
+            [userId, name, email, hashedPassword, 'active', creationDate, 0]
+        );
+
+        const accessId = v4();
+        const ipAddress = req.ip;
+        const accessDate = new Date();
+        const accessSuccessful = 1;
+
+        await db.query(
+            'INSERT INTO access_history (access_id, user_id, ip_address, access_date, access_successful) VALUES (?, ?, ?, ?, ?)',
+            [accessId, userId, ipAddress, accessDate, accessSuccessful]
+        );
+
+        const token = generateToken(userId, email);
+        res.status(201).json({ token });
+    } catch (error) {
+        res.status(500).json({ message: 'Server error', error });
+    }
+}
+
+export const login = async (req, res) => {
+    const { email, password } = req.body;
+
+    if (!email || !password) {
+        return res.status(400).json({ message: 'Please provide email and password' });
+    }
+
+    try {
+        const [existingUser] = await db.query('SELECT * FROM users WHERE email = ?', [email]);
+
+        if (existingUser.length === 0) {
+            return res.status(400).json({ message: 'Invalid email or password' });
+        }
+
+        const user = existingUser[0];
+
+        if(user.status === 'blocked') {
+            return res.status(400).json({ message: 'User is blocked' });
+        }
+
+        const passwordMatch = await bcrypt.compare(password, user.password_hash);
+
+        const accessId = v4();
+        const ipAddress = req.ip;
+        const accessDate = new Date();
+        let accessSuccessful = 0;
+
+        if (!passwordMatch) {
+            await db.query(
+                'UPDATE users SET failed_attempts = failed_attempts + 1 WHERE user_id = ?',
+                [user.user_id]
+            );
+            console.log("Failed attempts: " + user.failed_attempts);
+            if (user.failed_attempts >= 5) {
+                console.log("Blocking user");
+                await db.query(
+                    'UPDATE users SET status = ? WHERE user_id = ?',
+                    ['blocked', user.user_id]
+                );
+            }
+            await db.query(
+                'INSERT INTO access_history (access_id, user_id, ip_address, access_date, access_successful) VALUES (?, ?, ?, ?, ?)',
+                [accessId, user.user_id, ipAddress, accessDate, accessSuccessful]
+            )
+            return res.status(400).json({ message: 'Invalid email or password' });
+        }
+
+        await db.query(
+            'INSERT INTO access_history (access_id, user_id, ip_address, access_date, access_successful) VALUES (?, ?, ?, ?, ?)',
+            [accessId, user.user_id, ipAddress, accessDate, accessSuccessful]
+        );
+
+        await db.query(
+            'UPDATE users SET failed_attempts = 0 WHERE user_id = ?',
+            [user.user_id]
+        )
+
+        const token = generateToken(user.user_id, email);
+        res.status(200).json({ token });
+    } catch (error) {
+        res.status(500).json({ message: 'Server error', error });
+    }
+}
+
