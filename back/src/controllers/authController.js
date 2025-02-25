@@ -44,7 +44,20 @@ export const register = async (req, res) => {
             [accessId, userId, ipAddress, accessDate, accessSuccessful]
         );
 
-        const token = generateToken(userId, email);
+        const roleName = 'visitor';
+        const [roleResult] = await db.query(
+            'SELECT role_id FROM roles WHERE name = ?',
+            [roleName]
+        );
+
+        console.log(roleResult[0].role_id)
+
+        await db.query(
+            'INSERT INTO user_roles (user_role_id, user_id, role_id, assignment_date) VALUES (?, ?, ?, ?)',
+            [v4(), userId, roleResult[0].role_id, accessDate]
+        )
+
+        const token = generateToken(userId, email, [roleName]);
         res.status(201).json({ token });
     } catch (error) {
         res.status(500).json({ message: 'Server error', error });
@@ -95,6 +108,8 @@ export const login = async (req, res) => {
                 'INSERT INTO access_history (access_id, user_id, ip_address, access_date, access_successful) VALUES (?, ?, ?, ?, ?)',
                 [accessId, user.user_id, ipAddress, accessDate, accessSuccessful]
             )
+
+            console.log("mensaje error")
             return res.status(400).json({ message: 'Invalid email or password' });
         }
 
@@ -108,7 +123,12 @@ export const login = async (req, res) => {
             [user.user_id]
         )
 
-        const token = generateToken(user.user_id, email);
+        const [roles] = await db.query(
+            'SELECT r.* FROM roles r INNER JOIN user_roles ur ON r.role_id = ur.role_id WHERE ur.user_id = ?',
+            [user.user_id]
+        );
+
+        const token = generateToken(user.user_id, email, roles);
         res.status(200).json({ token });
     } catch (error) {
         res.status(500).json({ message: 'Server error', error });
