@@ -1,6 +1,6 @@
 import { useState } from 'react';
 
-import { login } from '../services/authService';
+import { login, forgotPassword } from '../services/authService';
 
 import useAuth from '../hooks/useAuth';
 
@@ -9,6 +9,8 @@ const Login = () => {
     const [password, setPassword] = useState('');
     const {token, setToken} = useAuth()
     const [error, setError] = useState(null)
+    const [showForgot, setShowForgot] = useState(false);
+    const [forgotEmail, setForgotEmail] = useState('');
 
     const handleSubmit = async (e) => {
         e.preventDefault();
@@ -19,6 +21,22 @@ const Login = () => {
             window.location.reload();
         } catch(error) {
             setError(error)
+        }
+    };
+
+    const handleForgotPassword = async () => {
+        try {
+            const response = await forgotPassword({ 
+                email: forgotEmail 
+            });
+            console.log(1)
+            alert(response.message);
+            console.log(2)
+            setShowForgot(false);
+            console.log(3)
+        } catch (error) {
+            alert('Error al enviar el correo de recuperación');
+            console.error(error)
         }
     };
 
@@ -57,9 +75,25 @@ const Login = () => {
                     />
                 </div>
                 <button type="submit">Login</button>
+                <button onClick={() => setShowForgot(!showForgot)}>
+                    ¿Olvidó su contraseña?
+                </button>
+                {showForgot && (
+                    <div>
+                    <h3>Recuperar Contraseña</h3>
+                    <input
+                        type="email"
+                        placeholder="Ingrese su correo"
+                        value={forgotEmail}
+                        onChange={(e) => setForgotEmail(e.target.value)}
+                    />
+                    <button onClick={handleForgotPassword}>Enviar correo</button>
+                    </div>
+                )}
             </form>
         </div>
     );
+
 };
 
 export default Login;
