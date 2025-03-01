@@ -1,8 +1,9 @@
 import db from '../config/db.js';
 import { v4 } from 'uuid';
 import bcrypt from 'bcryptjs';
+import sendRecoveryEmail from '../utils/mailer.js';
 
-import { generateToken } from '../utils/generate.js';
+import { generateToken, veryfyToken } from '../utils/generate.js';
 
 export const register = async (req, res) => {
     const { name, email, password } = req.body;
@@ -133,5 +134,43 @@ export const login = async (req, res) => {
     } catch (error) {
         res.status(500).json({ message: 'Server error', error });
     }
+}
+
+export const forgotPassword = async (req, res) => {
+    const {email} = req.body
+    const [existingUser] = await db.query('SELECT * FROM users WHERE email = ?', [email]);
+
+    if (existingUser.length === 0) {
+        return res.status(400).json({ message: 'Invalid email or password' });
+    }
+
+    const user = existingUser[0];
+
+    const [roles] = await db.query(
+        'SELECT r.* FROM roles r INNER JOIN user_roles ur ON r.role_id = ur.role_id WHERE ur.user_id = ?',
+        [user.user_id]
+    );
+
+    const token = generateToken(user.user_id, email, roles)
+    await sendRecoveryEmail(email, token)
+    res.json({message: 'Correo de recuperacion enviado'})
+}
+
+export const resetPassword = async (req, res) => {
+    const {token} = req.params
+    const {password} = req.body
+    try{
+        const decoded = veryfyToken(token)
+        const hashedPassword = await bcrypt.hash(password, 10)
+        await db.query(
+            'UPDATE users SET password_hash = ? WHERE user_id = ?', 
+            [hashedPassword, decoded.userId]
+        )
+        res.json({message: 'Constraseña actualizada correctamente'})
+    } catch (error){
+        console.log(error)
+        res.status(400).json({message: 'Invalid or expired token'})
+    }
+    
 }
 

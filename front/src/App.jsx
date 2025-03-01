@@ -5,6 +5,7 @@ import Register from "./pages/Register"
 import Home from "./pages/Home";
 import NotFound from './pages/NotFound';
 import Admin from './pages/Admin'
+import ResetPassword from "./pages/ResetPassword";
 
 const App = () => {
     const { isAuthenticated, loading, getRoles } = useAuth();
@@ -33,7 +34,12 @@ const App = () => {
             isAuthenticated && isAdmin ? <Admin /> : <Navigate to="/home" />
           }
         />
+        <Route 
+          path="/reset-password/:token" 
+          element={<ResetPassword />} 
+        /> 
         <Route path="*" element={<NotFound />} />
+        
       </Routes>
     );
   };
