@@ -169,8 +169,74 @@ export const resetPassword = async (req, res) => {
         res.json({message: 'Constraseña actualizada correctamente'})
     } catch (error){
         console.log(error)
-        res.status(400).json({message: 'Invalid or expired token'})
+        res.status(500).json({message: 'Invalid or expired token'})
     }
-    
 }
 
+export const listRoles = async (req, res) => {
+    try{
+        const roles = await db.query(
+            'SELECT * FROM roles'
+        )
+        res.json(roles[0])
+    } catch (error){
+        console.log(error)
+        res.status(500).json({message: 'Error to bring roles from database'})
+    }
+}
+
+export const getUserRoles = async (req, res) => {
+    const userId = req.params.id
+    try{
+        console.log(userId)
+        const [roles] = await db.query(
+            "SELECT r.role_id FROM roles r JOIN user_roles ur ON r.role_id = ur.role_id WHERE ur.user_id = ?",  
+            [userId]
+        )
+        res.json(roles)
+    }catch (error){
+        console.error('Error al obtener usuario: ', error)
+        res.status(500).json({message: 'Error al obtener rol del usuario'})
+    }
+}
+
+export const getUserData = async (req, res) => {
+    const email = req.params.email;
+    try {
+        const [existingUser] = await db.query('SELECT user_id, name, email FROM users WHERE email = ?', [email]);
+        if (!existingUser) {
+            return res.status(404).json({ message: 'Usuario no encontrado' });
+        }
+        res.json(existingUser[0]);
+    } catch (error) {
+        console.error('Error al obtener el usuario:', error);
+        res.status(500).json({ message: 'Error al obtener el usuario' });
+    }
+}
+
+export const updateUserRoles = async (req, res) => {
+    const { id, roles } = req.body;
+    const accessDate = new Date();
+
+    try {
+        await db.query(
+            'DELETE FROM user_roles WHERE user_id = ?', 
+            [id]
+        )
+
+        const insertPromises = roles.map(roleId =>
+            connection.query(
+                'INSERT INTO user_roles (user_role_id, user_id, role_id, assignment_date) VALUES (?, ?, ?, ?)', 
+                [v4(), id, roleId, accessDate]
+            )
+        );
+
+        await Promise.all(insertPromises);
+
+        res.json({ message: 'Roles actualizados correctamente' });
+    } catch (error) {
+        await connection.rollback();
+        console.error('Error al actualizar roles del usuario:', error);
+        res.status(500).json({ message: 'Error al actualizar roles del usuario' });
+    }
+} 
