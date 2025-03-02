@@ -19,8 +19,11 @@ const Admin = () => {
             const userRoles = await getRolesByUserId(userData.user_id);
             const allRoles = await getRoles();
 
-            setRoles(allRoles);
-            setSelectedRoles(userRoles.map(role => role.role_id));
+            console.log(allRoles)
+            if(allRoles) {
+                setRoles(allRoles);
+                setSelectedRoles(userRoles.map(role => role.role_id));
+            }
             setHasChanges(false);
 
             setUser({
@@ -66,7 +69,7 @@ const Admin = () => {
             {/* Header */}
             <header className="bg-white shadow">
                 <div className="max-w-7xl mx-auto py-6 px-4 sm:px-6 lg:px-8 flex justify-between items-center">
-                    <h1 className="text-3xl font-bold text-gray-900">Admin Dashboard</h1>
+                    <h1 className="text-3xl font-bold text-gray-900">Admin Panel</h1>
                     <Link 
                         to="/home" 
                         className="rounded-md border border-transparent bg-indigo-600 py-2 px-4 text-sm font-medium text-white shadow-sm hover:bg-indigo-700 focus:outline-none focus:ring-2 focus:ring-indigo-500 focus:ring-offset-2"
