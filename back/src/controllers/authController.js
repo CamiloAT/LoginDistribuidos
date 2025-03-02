@@ -188,12 +188,11 @@ export const listRoles = async (req, res) => {
 export const getUserRoles = async (req, res) => {
     const userId = req.params.id
     try{
-        console.log(userId)
         const [roles] = await db.query(
             "SELECT r.role_id FROM roles r JOIN user_roles ur ON r.role_id = ur.role_id WHERE ur.user_id = ?",  
             [userId]
         )
-        res.json(roles)
+        res.status(200).json(roles)
     }catch (error){
         console.error('Error al obtener usuario: ', error)
         res.status(500).json({message: 'Error al obtener rol del usuario'})
@@ -207,7 +206,7 @@ export const getUserData = async (req, res) => {
         if (!existingUser) {
             return res.status(404).json({ message: 'Usuario no encontrado' });
         }
-        res.json(existingUser[0]);
+        res.status(200).json(existingUser[0]);
     } catch (error) {
         console.error('Error al obtener el usuario:', error);
         res.status(500).json({ message: 'Error al obtener el usuario' });
@@ -224,14 +223,13 @@ export const updateUserRoles = async (req, res) => {
             [id]
         )
 
-        const insertPromises = roles.map(roleId =>
-            connection.query(
+        // Insert each role for the user
+        for (const roleId of roles) {
+            await db.query(
                 'INSERT INTO user_roles (user_role_id, user_id, role_id, assignment_date) VALUES (?, ?, ?, ?)', 
                 [v4(), id, roleId, accessDate]
-            )
-        );
-
-        await Promise.all(insertPromises);
+            );
+        }
 
         res.json({ message: 'Roles actualizados correctamente' });
     } catch (error) {

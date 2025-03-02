@@ -2,10 +2,11 @@ import api from './api.js';
 
 export const getUserByEmail = async (email) => {
   try {
-    const response = await api(`/user/${email}`, {
+    const response = await api(`auth/user/${email}`, {
         method: 'GET'
     });
-    return response.data;
+
+    return response;
   } catch (error) {
     console.error(error);
   }

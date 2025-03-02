@@ -2,10 +2,10 @@ import api from './api.js';
 
 export const getRoles = async () => {
     try {
-        const response = await api('/roles', {
+        const response = await api('auth/roles', {
             method: 'GET'
         });
-        return response.data;
+        return response;
     } catch (error) {
         console.error(error);
     }
@@ -13,10 +13,10 @@ export const getRoles = async () => {
 
 export const getRolesByUserId = async (userId) => {
     try {
-        const response = await api(`/roles-user/${userId}`, {
+        const response = await api(`auth/role-user/${userId}`, {
             method: 'GET'
         });
-        return response.data;
+        return response;
     } catch (error) {
         console.error(error);
     }
@@ -24,11 +24,12 @@ export const getRolesByUserId = async (userId) => {
 
 export const updateUserRoles = async (userId, roles) => {
     try {
-        const response = await api(`/roles-user/${userId}`, {
-            method: 'PUT',
-            body: JSON.stringify({ roles })
+        const response = await api(`auth/change-role-user`, {
+            method: 'POST',
+            body: JSON.stringify({ id: userId, roles })
         });
-        return response.data;
+        console.log(response)
+        return response;
     } catch (error) {
         console.error(error);
     }
