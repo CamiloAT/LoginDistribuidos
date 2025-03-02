@@ -12,7 +12,7 @@ const ResetPassword = () => {
         e.preventDefault();
         try {
             const response = await api(`auth/reset-password/${token}`, {
-                method: "POST",
+                method: "PUT",
                 body: JSON.stringify({password})
             })
             setMessage(response.message);
