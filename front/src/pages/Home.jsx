@@ -1,131 +1,167 @@
-import { useState, useEffect } from 'react';
-import { Link } from 'react-router-dom';
+import { useState, useEffect } from 'react'; 
+import { useNavigate } from 'react-router-dom';
 import useAuth from '../hooks/useAuth';
+import {
+  Search,
+  LogOut,
+  Download,
+  ExternalLink,
+  Trash2,
+  Upload,
+  Edit3
+} from 'lucide-react';
 
-const Home = () => {
-    const { logout, getRoles, getUser } = useAuth();
-    const [user, setUser] = useState(null);
-    
-    useEffect(() => {
-        // You could implement this getUser function in your auth context 
-        // or replace with whatever user info you have
-        const userData = getUser ? getUser() : { name: "User" };
-        setUser(userData);
-    }, [getUser]);
+export default function Home() {
+  const { logout, getUser } = useAuth();
+  const [user, setUser] = useState(null);
+  const navigate = useNavigate();
 
-    // Function to check if role is admin
-    const isAdmin = (roleName) => {
-        const role = roleName.toLowerCase();
-        return role === 'admin' || role === 'administrator';
-    };
+  useEffect(() => {
+    const userData = getUser ? getUser() : { name: 'User' };
+    setUser(userData);
+  }, [getUser]);
 
-    return (
-        <div className="min-h-screen bg-gray-50">
-            {/* Header */}
-            <header className="bg-white shadow">
-                <div className="max-w-7xl mx-auto py-6 px-4 sm:px-6 lg:px-8 flex justify-between items-center">
-                    <h1 className="text-3xl font-bold text-gray-900">Dashboard</h1>
-                    <button 
-                        onClick={logout}
-                        className="rounded-md border border-transparent bg-indigo-600 py-2 px-4 text-sm font-medium text-white shadow-sm hover:bg-indigo-700 focus:outline-none focus:ring-2 focus:ring-indigo-500 focus:ring-offset-2"
-                    >
-                        Logout
-                    </button>
-                </div>
-            </header>
-            
-            {/* Main content */}
-            <main className="max-w-7xl mx-auto py-6 sm:px-6 lg:px-8">
-                {/* Welcome card */}
-                <div className="bg-white overflow-hidden shadow rounded-lg mb-6">
-                    <div className="px-4 py-5 sm:px-6">
-                        <h2 className="text-xl font-semibold text-gray-800">
-                            Welcome, {user?.name || 'User'}
-                        </h2>
-                        <p className="mt-1 text-sm text-gray-500">
-                            Thank you for using our distributed authentication system.
-                        </p>
-                    </div>
-                </div>
-                
-                {/* Roles section */}
-                <div className="mt-8">
-                    <h3 className="text-lg font-medium text-gray-900 mb-4">Your Roles</h3>
-                    <div className="bg-white shadow overflow-hidden sm:rounded-md">
-                        <ul className="divide-y divide-gray-200">
-                            {getRoles().length > 0 ? (
-                                getRoles().map((role, index) => (
-                                    <li key={role.role_id || index} className="px-6 py-4">
-                                        <div className="flex items-center">
-                                            <div className="min-w-0 flex-1">
-                                                <p className="text-sm font-medium text-indigo-600 truncate">
-                                                    {role.name || role}
-                                                </p>
-                                                <p className="text-sm text-gray-500">
-                                                    ID: {role.role_id || 'N/A'}
-                                                </p>
-                                                {isAdmin(role.name || role) && (
-                                                    <Link 
-                                                        to="/admin" 
-                                                        className="mt-2 inline-flex items-center text-sm font-medium text-indigo-600 hover:text-indigo-500"
-                                                    >
-                                                        Admin Panel
-                                                        <svg className="ml-1 h-4 w-4" fill="currentColor" viewBox="0 0 20 20">
-                                                            <path fillRule="evenodd" d="M7.293 14.707a1 1 0 010-1.414L10.586 10 7.293 6.707a1 1 0 011.414-1.414l4 4a1 1 0 010 1.414l-4 4a1 1 0 01-1.414 0z" clipRule="evenodd" />
-                                                        </svg>
-                                                    </Link>
-                                                )}
-                                            </div>
-                                            <div className="ml-4 flex-shrink-0">
-                                                <span className="inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium bg-green-100 text-green-800">
-                                                    Active
-                                                </span>
-                                            </div>
-                                        </div>
-                                    </li>
-                                ))
-                            ) : (
-                                <li className="px-6 py-4 text-sm text-gray-500">
-                                    No roles assigned
-                                </li>
-                            )}
-                        </ul>
-                    </div>
-                </div>
-                
-                {/* Additional info card */}
-                <div className="mt-8 grid grid-cols-1 gap-5 sm:grid-cols-2">
-                    <div className="bg-white overflow-hidden shadow rounded-lg">
-                        <div className="px-4 py-5 sm:p-6">
-                            <h3 className="text-lg font-medium text-gray-900">Session Information</h3>
-                            <div className="mt-3 text-sm text-gray-500">
-                                <p>Your session is secure and protected.</p>
-                                <p className="mt-2">Last login: {new Date().toLocaleString()}</p>
-                            </div>
-                        </div>
-                    </div>
-                    
-                    <div className="bg-white overflow-hidden shadow rounded-lg">
-                        <div className="px-4 py-5 sm:p-6">
-                            <h3 className="text-lg font-medium text-gray-900">Need Help?</h3>
-                            <div className="mt-3 text-sm text-gray-500">
-                                <p>If you need assistance, please contact our support team.</p>
-                                <a 
-                                    href="#" 
-                                    className="mt-3 inline-flex items-center text-sm font-medium text-indigo-600 hover:text-indigo-500"
-                                >
-                                    Contact Support
-                                    <svg className="ml-1 h-4 w-4" fill="currentColor" viewBox="0 0 20 20">
-                                        <path fillRule="evenodd" d="M7.293 14.707a1 1 0 010-1.414L10.586 10 7.293 6.707a1 1 0 011.414-1.414l4 4a1 1 0 010 1.414l-4 4a1 1 0 01-1.414 0z" clipRule="evenodd" />
-                                    </svg>
-                                </a>
-                            </div>
-                        </div>
-                    </div>
-                </div>
-            </main>
+  // Array de imágenes de ejemplo
+  const images = [
+    { id: 1, url: 'https://img.freepik.com/vector-gratis/cute-cool-boy-dabbing-pose-dibujos-animados-vector-icono-ilustracion-concepto-icono-moda-personas-aislado_138676-5680.jpg', title: 'Naturaleza' },
+    { id: 2, url: 'https://img.freepik.com/vector-gratis/lindo-robot-unicornio-ciborg-icono-vectorial-dibujos-animados-ilustracion-icono-tecnologia-animal-aislado-plano_138676-12176.jpg', title: 'Ciudad' },
+    { id: 3, url: 'https://img.freepik.com/vector-gratis/triceratop-lindo-vista-delantera-trasera-icono-vectorial-dibujos-animados-ilustracion-naturaleza-animal-plano_138676-14233.jpg', title: 'Tecnología' },
+    { id: 4, url: 'https://img.freepik.com/vector-gratis/animales-lindos-blanco_1308-35096.jpg', title: 'Viajes' },
+    { id: 5, url: 'https://media.vogue.mx/photos/60e49f2d3a0166093ab3cabc/2:3/w_2560%2Cc_limit/nicki-nicole.jpg', title: 'Comida' },
+    { id: 6, url: 'https://img.redbull.com/images/c_crop,x_1217,y_0,h_3648,w_2736/c_fill,w_450,h_600/q_auto:low,f_auto/redbullcom/2019/06/28/9c614447-6134-40a3-b46b-e4284a575c61/nick', title: 'Comida' },
+    { id: 7, url: 'https://tn.com.ar/resizer/v2/nicki-nicole-subio-una-publicacion-y-recibio-un-comentario-que-enloquecio-a-sus-fans-foto-instagramnickinicole-27KEKLXAKFH2BFRQ6MWC4SQFKM.jpg?auth=cb83959906f24de38566ce18ab30efe4c6483569ee818815b625c02d578ec129&width=767', title: 'Comida' },
+    { id: 8, url: 'https://czcomunicacion.com/images/CZ/Contenidos/Noticias/NICKI_NICOLE/NAIKI_128.jpg', title: 'Comida' },
+    { id: 9, url: 'https://encrypted-tbn0.gstatic.com/images?q=tbn:ANd9GcRMKESHPA_xjyJIU2e5Q10TW9Dmf2XXxyHyTg&s', title: 'Comida' },
+    { id: 10, url: 'https://www.redaccion.com.ar/wp-content/uploads/2023/05/NICKI.jpg', title: 'Comida' }
+  ];
+
+  return (
+    <div className="min-h-screen flex bg-gray-100">
+      {/* Barra lateral fija */}
+      <aside className="fixed left-0 top-0 h-full w-16 sm:w-20 bg-white shadow-md flex flex-col items-center py-4 space-y-4">
+        {/* Botón de perfil: navega a /profile */}
+        <button
+          onClick={() => navigate('/profile')}
+          className="flex flex-col items-center space-y-1"
+        >
+          <img
+            src={user?.profilePic || 'https://img.redbull.com/images/c_crop,x_1217,y_0,h_3648,w_2736/c_fill,w_450,h_600/q_auto:low,f_auto/redbullcom/2019/06/28/9c614447-6134-40a3-b46b-e4284a575c61/nick'}
+            alt="Profile"
+            className="w-12 h-12 rounded-full object-cover border border-gray-200"
+          />
+          <Edit3 className="w-4 h-4 text-gray-500" />
+        </button>
+
+        {/* Botón Galería: redirige a Home */}
+        <button
+          onClick={() => navigate('/home')}
+          className="flex flex-col items-center space-y-1"
+        >
+          <svg
+            className="w-6 h-6 text-gray-500"
+            fill="none"
+            stroke="currentColor"
+            viewBox="0 0 24 24"
+            xmlns="http://www.w3.org/2000/svg"
+          >
+            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M3 7h18M3 12h18M3 17h18"></path>
+          </svg>
+          <span className="text-xs text-gray-600">Galería</span>
+        </button>
+
+        {/* Botón Subir: ubicado justo debajo del botón de perfil */}
+        <button
+          onClick={() => navigate('/uploadImage')}
+          className="bg-indigo-600 text-white px-2 py-1 rounded flex items-center space-x-1 hover:bg-indigo-700"
+        >
+          <Upload className="w-4 h-4" />
+          <span className="hidden sm:inline text-xs">Subir</span>
+        </button>
+      </aside>
+
+      {/* Contenedor principal con margen izquierdo igual al ancho del aside */}
+      <div className="flex-1 flex flex-col ml-16 sm:ml-20">
+        {/* Encabezado sticky */}
+        <header className="bg-white shadow sticky top-0 z-50 p-4 flex items-center">
+          <h1 className="text-xl font-bold text-gray-900 mr-4">Galería</h1>
+          {/* Recuadro de búsqueda y filtro */}
+          <div className="flex flex-1 items-center">
+            <div className="flex items-center bg-gray-200 hover:bg-gray-300 transition-colors rounded flex-1 mr-4">
+              <Search className="w-5 h-5 text-gray-500 ml-3" />
+              <input
+                type="text"
+                placeholder="Buscar..."
+                className="flex-1 bg-transparent border-0 px-2 py-2 outline-none"
+              />
+            </div>
+            <div>
+              <input
+                type="date"
+                className="border rounded px-2 py-2 bg-gray-200 hover:bg-gray-300 transition-colors outline-none"
+              />
+            </div>
+          </div>
+          {/* Botón de Logout */}
+          <button
+            onClick={logout}
+            className="ml-4 flex items-center space-x-1 text-red-500 hover:text-red-600"
+          >
+            <LogOut className="w-5 h-5" />
+            <span className="hidden sm:inline">Logout</span>
+          </button>
+        </header>
+
+        {/* Contenido principal: Galería */}
+        <main className="flex-1 p-6">
+          <div className="mb-4">
+            <p className="text-gray-700">
+              Bienvenido, <strong>{user?.name || 'User'}</strong>
+            </p>
+          </div>
+          <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 lg:grid-cols-4 gap-4">
+            {images.map((img) => (
+              <ImageCard key={img.id} image={img} />
+            ))}
+          </div>
+        </main>
+      </div>
+    </div>
+  );
+}
+
+function ImageCard({ image }) {
+  const [hover, setHover] = useState(false);
+
+  const handleGuardar = () => alert(`Descargando: ${image.title}`);
+  const handleAbrir = () => alert(`Abriendo: ${image.title}`);
+  const handleEliminar = () => alert(`Eliminando: ${image.title}`);
+
+  return (
+    <div
+      className="relative group cursor-pointer"
+      onMouseEnter={() => setHover(true)}
+      onMouseLeave={() => setHover(false)}
+    >
+      <img
+        src={image.url}
+        alt={image.title}
+        className="w-full h-52 object-cover rounded-lg shadow"
+      />
+      {hover && (
+        <div className="absolute inset-0 bg-black bg-opacity-50 flex items-center justify-center space-x-3 rounded-lg">
+          <button onClick={handleGuardar} className="bg-red-500 text-white px-3 py-2 rounded hover:bg-red-600">
+            <Download className="inline-block w-5 h-5 mr-1" /> Descargar
+          </button>
+          <button onClick={handleAbrir} className="bg-blue-500 text-white px-3 py-2 rounded hover:bg-blue-600">
+            <ExternalLink className="inline-block w-5 h-5 mr-1" /> Abrir
+          </button>
+          <button onClick={handleEliminar} className="bg-gray-600 text-white px-3 py-2 rounded hover:bg-gray-700">
+            <Trash2 className="inline-block w-5 h-5 mr-1" /> Eliminar
+          </button>
         </div>
-    );
-};
+      )}
+    </div>
+  );
+}
 
-export default Home;
+
