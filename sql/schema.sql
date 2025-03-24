@@ -32,6 +32,15 @@ CREATE TABLE access_history (
     FOREIGN KEY (user_id) REFERENCES users(user_id) ON DELETE CASCADE ON UPDATE CASCADE
 );
 
+CREATE TABLE images (
+    image_id CHAR(36) PRIMARY KEY,
+    user_id CHAR(36) NOT NULL,
+    image_name VARCHAR(100) NOT NULL,
+    path VARCHAR(255) NOT NULL,
+    creation_date TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+    FOREIGN KEY (user_id) REFERENCES users(user_id) ON DELETE CASCADE ON UPDATE CASCADE
+)
+
 INSERT INTO roles (role_id, name, description) 
 VALUES (UUID(), 'admin', 'Administrator with full permissions');
 
