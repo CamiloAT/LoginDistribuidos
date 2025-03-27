@@ -1,5 +1,5 @@
 import { v4 as uuidv4 } from 'uuid';
-import { uploadImageToContainer, getImageByIdForContainer } from '../services/storageService.js';
+import { uploadImageToContainer } from '../services/storageService.js';
 import db from '../config/db.js';
 import { upload as uploadMiddleware } from '../config/multerConfig.js';
 
@@ -41,7 +41,7 @@ export const upload = async (req, res) => {
         console.log('Upload successful:', uploadResult);
         
         // Build the download path
-        const downloadPath = `http://${uploadResult.containerIP}/download/${uploadResult.image.id}`;
+        const downloadPath = `http://${uploadResult.containerIP}/image/${uploadResult.image.id}`;
         
         // Store record in database
         await db.query(
@@ -71,7 +71,7 @@ export const images = async (req, res) => {
   try {
     // Query to fetch all images from the database
     const [rows] = await db.query(
-      'SELECT image_id, path FROM images ORDER BY creation_date DESC'
+      'SELECT image_id, path, user_id FROM images ORDER BY creation_date DESC'
     );
     
     // Return the list of images
@@ -86,33 +86,82 @@ export const images = async (req, res) => {
   }
 };
 
-export const getImagesById = async (req, res) => {
+export const deleteImage = async (req, res) => {
   try {
-    const { idImage, ipContainer } = req.query;
+
+    const { imageId } = req.query;
     
-    // Validate required parameters
-    if (!idImage) {
+    if (!imageId) {
       return res.status(400).json({ message: 'Image ID is required' });
     }
     
-    if (!ipContainer) {
-      return res.status(400).json({ message: 'Container IP is required' });
+    // Get the image info from the database
+    const [imageRows] = await db.query(
+      'SELECT * FROM images WHERE image_id = ?',
+      [imageId]
+    );
+    
+    if (imageRows.length === 0) {
+      return res.status(404).json({ message: 'Image not found in database' });
     }
     
-    // Fetch the image from the container
-    const response = await getImageByIdForContainer(idImage, ipContainer);
+    const image = imageRows[0];
     
-    // Forward the response
-    const contentType = response.headers.get('content-type');
-    const buffer = await response.arrayBuffer();
+    // Extract container IP from the path
+    // Assuming path is in format: http://CONTAINER_IP/image/IMAGE_ID
+    const containerUrl = new URL(image.path);
+    const containerIP = containerUrl.host;
     
-    res.set('Content-Type', contentType);
-    return res.send(Buffer.from(buffer));
+    // Call the container's delete endpoint
+    const response = await fetch(`http://${containerIP}/delete/${imageId}`, {
+      method: 'DELETE',
+    });
+    
+    if (!response.ok) {
+      const errorData = await response.json();
+      throw new Error(`Container returned error: ${errorData.error || 'Unknown error'}`);
+    }
+    
+    // Remove the image record from the database
+    await db.query('DELETE FROM images WHERE image_id = ?', [imageId]);
+    
+    return res.status(200).json({ message: 'Image deleted successfully' });
   } catch (error) {
-    console.error('Error fetching image by ID:', error);
-    return res.status(500).json({ 
-      message: 'Failed to fetch image', 
-      details: error.message 
+    console.error('Error deleting image:', error);
+    return res.status(500).json({
+      message: 'Failed to delete image',
+      details: error.message
     });
   }
 };
+
+// export const getImagesById = async (req, res) => {
+//   try {
+//     const { idImage, ipContainer } = req.query;
+    
+//     // Validate required parameters
+//     if (!idImage) {
+//       return res.status(400).json({ message: 'Image ID is required' });
+//     }
+    
+//     if (!ipContainer) {
+//       return res.status(400).json({ message: 'Container IP is required' });
+//     }
+    
+//     // Fetch the image from the container
+//     const response = await getImageByIdForContainer(idImage, ipContainer);
+    
+//     // Forward the response
+//     const contentType = response.headers.get('content-type');
+//     const buffer = await response.arrayBuffer();
+    
+//     res.set('Content-Type', contentType);
+//     return res.send(Buffer.from(buffer));
+//   } catch (error) {
+//     console.error('Error fetching image by ID:', error);
+//     return res.status(500).json({ 
+//       message: 'Failed to fetch image', 
+//       details: error.message 
+//     });
+//   }
+// };

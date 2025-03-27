@@ -10,11 +10,12 @@ import {
   Upload,
   Edit3
 } from 'lucide-react';
-import { getImage, getAllImages } from '../services/contService';
+import { getAllImages, deleteImage } from '../services/contService';
 
 export default function Home() {
   const { logout, getUser } = useAuth();
   const [user, setUser] = useState(null);
+  const [images, setImages] = useState([]);
   const navigate = useNavigate();
 
   useEffect(() => {
@@ -22,63 +23,36 @@ export default function Home() {
     setUser(userData);
   }, [getUser]);
 
+  useEffect(() => {
+    const fetchImages = async () => {
+      try {
+        const getImages = await getAllImages();
+        setImages(getImages); 
+      } catch (err) {
+        console.error(err);
+      }
+    } 
+
+    fetchImages();
+
+  }, [])
+
+  console.log(images);
+
   // Array de imágenes de ejemplo
-  const images = [
-    { id: 1, url: 'https://img.freepik.com/vector-gratis/cute-cool-boy-dabbing-pose-dibujos-animados-vector-icono-ilustracion-concepto-icono-moda-personas-aislado_138676-5680.jpg', title: 'Naturaleza' },
-    { id: 2, url: 'https://img.freepik.com/vector-gratis/lindo-robot-unicornio-ciborg-icono-vectorial-dibujos-animados-ilustracion-icono-tecnologia-animal-aislado-plano_138676-12176.jpg', title: 'Ciudad' },
-    { id: 3, url: 'https://img.freepik.com/vector-gratis/triceratop-lindo-vista-delantera-trasera-icono-vectorial-dibujos-animados-ilustracion-naturaleza-animal-plano_138676-14233.jpg', title: 'Tecnología' },
-    { id: 4, url: 'https://img.freepik.com/vector-gratis/animales-lindos-blanco_1308-35096.jpg', title: 'Viajes' },
-    { id: 5, url: 'https://media.vogue.mx/photos/60e49f2d3a0166093ab3cabc/2:3/w_2560%2Cc_limit/nicki-nicole.jpg', title: 'Comida' },
-    { id: 6, url: 'https://img.redbull.com/images/c_crop,x_1217,y_0,h_3648,w_2736/c_fill,w_450,h_600/q_auto:low,f_auto/redbullcom/2019/06/28/9c614447-6134-40a3-b46b-e4284a575c61/nick', title: 'Comida' },
-    { id: 7, url: 'https://tn.com.ar/resizer/v2/nicki-nicole-subio-una-publicacion-y-recibio-un-comentario-que-enloquecio-a-sus-fans-foto-instagramnickinicole-27KEKLXAKFH2BFRQ6MWC4SQFKM.jpg?auth=cb83959906f24de38566ce18ab30efe4c6483569ee818815b625c02d578ec129&width=767', title: 'Comida' },
-    { id: 8, url: 'https://czcomunicacion.com/images/CZ/Contenidos/Noticias/NICKI_NICOLE/NAIKI_128.jpg', title: 'Comida' },
-    { id: 9, url: 'https://encrypted-tbn0.gstatic.com/images?q=tbn:ANd9GcRMKESHPA_xjyJIU2e5Q10TW9Dmf2XXxyHyTg&s', title: 'Comida' },
-    { id: 10, url: 'https://www.redaccion.com.ar/wp-content/uploads/2023/05/NICKI.jpg', title: 'Comida' }
-  ];
+  // const images = [
+  //   { id: 1, url: 'https://img.freepik.com/vector-gratis/cute-cool-boy-dabbing-pose-dibujos-animados-vector-icono-ilustracion-concepto-icono-moda-personas-aislado_138676-5680.jpg', title: 'Naturaleza' },
+  //   { id: 2, url: 'https://img.freepik.com/vector-gratis/lindo-robot-unicornio-ciborg-icono-vectorial-dibujos-animados-ilustracion-icono-tecnologia-animal-aislado-plano_138676-12176.jpg', title: 'Ciudad' },
+  //   { id: 3, url: 'https://img.freepik.com/vector-gratis/triceratop-lindo-vista-delantera-trasera-icono-vectorial-dibujos-animados-ilustracion-naturaleza-animal-plano_138676-14233.jpg', title: 'Tecnología' },
+  //   { id: 4, url: 'https://img.freepik.com/vector-gratis/animales-lindos-blanco_1308-35096.jpg', title: 'Viajes' },
+  //   { id: 5, url: 'https://media.vogue.mx/photos/60e49f2d3a0166093ab3cabc/2:3/w_2560%2Cc_limit/nicki-nicole.jpg', title: 'Comida' },
+  //   { id: 6, url: 'https://img.redbull.com/images/c_crop,x_1217,y_0,h_3648,w_2736/c_fill,w_450,h_600/q_auto:low,f_auto/redbullcom/2019/06/28/9c614447-6134-40a3-b46b-e4284a575c61/nick', title: 'Comida' },
+  //   { id: 7, url: 'https://tn.com.ar/resizer/v2/nicki-nicole-subio-una-publicacion-y-recibio-un-comentario-que-enloquecio-a-sus-fans-foto-instagramnickinicole-27KEKLXAKFH2BFRQ6MWC4SQFKM.jpg?auth=cb83959906f24de38566ce18ab30efe4c6483569ee818815b625c02d578ec129&width=767', title: 'Comida' },
+  //   { id: 8, url: 'https://czcomunicacion.com/images/CZ/Contenidos/Noticias/NICKI_NICOLE/NAIKI_128.jpg', title: 'Comida' },
+  //   { id: 9, url: 'https://encrypted-tbn0.gstatic.com/images?q=tbn:ANd9GcRMKESHPA_xjyJIU2e5Q10TW9Dmf2XXxyHyTg&s', title: 'Comida' },
+  //   { id: 10, url: 'https://www.redaccion.com.ar/wp-content/uploads/2023/05/NICKI.jpg', title: 'Comida' }
+  // ];
 
-  // // Supongamos que getAllImages() retorna un arreglo de imágenes con la estructura definida en la BD
-  // const dataImages = getAllImages(); // Ejemplo: [{ image_id, user_id, image_name, path, creation_date }, ...]
-  // const realImages = [];
-
-  // dataImages.forEach(image => {
-  //   // Extraemos el id y el path
-  //   const { image_id, path } = image;
-
-  //   // Dividimos el path por "/"
-  //   const segments = path.split("400");
-
-  //   let ipContainer;
-    
-  //   // Verificamos si hay un segundo segmento y si tiene al menos un carácter
-  //   if (segments.length > 1 && segments[1].length > 0) {
-  //       const firstChar = segments[1][0]; // Tomamos el primer carácter del segundo segmento
-    
-  //       if (firstChar === "1") {
-  //           ipContainer = 4001;
-  //       } else if (firstChar === "2") {
-  //           ipContainer = 4002;
-  //       } else {
-  //           ipContainer = 4003;
-  //       }
-  //   } else {
-  //       console.error("No se encontró un puerto válido en el path:", path);
-  //       ipContainer = null; // O maneja el caso de error según lo que necesites
-  //   }    
-
-  //   if (ipContainer) {
-  //     // Llamamos al método getImage pasándole el id de la imagen y el puerto del contenedor
-  //     getImage(image_id, ipContainer)
-  //       .then(result => {
-  //         // Agregamos la imagen obtenida al arreglo
-  //         realImages.push(result);
-  //       })
-  //       .catch(error => {
-  //         console.error(`Error al obtener la imagen con id ${image_id}:`, error);
-  //       });
-  //   } else {
-  //     console.warn(`No se encontró un puerto válido en el path: ${path}`);
-  //   }
-  // });
 
 
   return (
@@ -174,7 +148,6 @@ export default function Home() {
     </div>
   );
 }
-
 function ImageCard({ image }) {
   const [hover, setHover] = useState(false);
   const [isZoomed, setIsZoomed] = useState(false);
@@ -184,7 +157,7 @@ function ImageCard({ image }) {
     const img = new Image();
     // Importante: Permitir solicitudes CORS
     img.crossOrigin = "anonymous";
-    img.src = image.url;
+    img.src = image.path;
   
     img.onload = () => {
       // Crea un canvas con el tamaño de la imagen
@@ -204,7 +177,7 @@ function ImageCard({ image }) {
         const blobUrl = URL.createObjectURL(blob);
         const link = document.createElement("a");
         link.href = blobUrl;
-        link.download = image.title || "download";
+        link.download = image.id_image || "download";
         // Forzamos el click para descargar
         document.body.appendChild(link);
         link.click();
@@ -224,7 +197,21 @@ function ImageCard({ image }) {
     setIsZoomed(true);
   };
 
-  const handleEliminar = () => alert(`Eliminando: ${image.title}`);
+  const handleEliminar = async () => {
+    if (!window.confirm('¿Estás seguro de que deseas eliminar esta imagen?')) {
+      return;
+    }
+
+    try {
+      await deleteImage(image.image_id);
+      alert('Imagen eliminada con éxito');
+      // Recargar la página para mostrar la lista actualizada
+      window.location.reload();
+    } catch (err) {
+      console.error(err);
+      alert('Error al eliminar la imagen');
+    }
+  };
 
   return (
     <>
@@ -234,8 +221,8 @@ function ImageCard({ image }) {
         onMouseLeave={() => setHover(false)}
       >
         <img
-          src={image.url}
-          alt={image.title}
+          src={image.path}
+          alt="imagen cualquiera"
           className="w-full h-52 object-cover rounded-lg shadow"
         />
         {hover && (
@@ -269,8 +256,8 @@ function ImageCard({ image }) {
           onClick={() => setIsZoomed(false)} // Cierra el modal al hacer clic fuera
         >
           <img
-            src={image.url}
-            alt={image.title}
+            src={image.path}
+            alt="imagen cualquiera"
             className="max-w-full max-h-full object-contain rounded shadow-lg"
           />
         </div>
