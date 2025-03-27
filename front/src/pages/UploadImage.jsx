@@ -2,6 +2,7 @@ import { useState, useEffect, useRef } from 'react';
 import { useNavigate } from 'react-router-dom';
 import useAuth from '../hooks/useAuth';
 import { LogOut, Upload, Edit3 } from 'lucide-react';
+import { uploadImage } from '../services/contService';
 
 export default function UploadImage() {
   const { logout, getUser } = useAuth();
@@ -30,9 +31,25 @@ export default function UploadImage() {
   };
 
   // Simula la publicación
-  const handlePublish = () => {
-    alert('Publicando la imagen...');
-    // Aquí podrías enviar los datos a tu backend
+  const handlePublish = async () => {
+    if (!file) {
+      alert('No has seleccionado ningún archivo.');
+      return;
+    }
+
+    setIsUploading(true);
+    try {
+      // Llamamos al servicio que envía la imagen al backend
+      const response = await uploadImage(file);
+      alert('Imagen subida correctamente');
+      // Aquí puedes agregar lógica adicional, como redirigir o actualizar el estado global
+      console.log('Respuesta del backend:', response);
+    } catch (error) {
+      console.error('Error al subir la imagen:', error);
+      alert('Error al subir la imagen');
+    } finally {
+      setIsUploading(false);
+    }
   };
 
   // Botón para abrir el cuadro de diálogo de archivos
