@@ -2,10 +2,16 @@ import api from './api.js';
 
 export const uploadImage = async (file, user_id) => {
   try {
-    const formData = new FormData();
-    formData.append('user_id', user_id);
-    formData.append('file', file);
+    console.log(user_id)
+    console.log(file)
 
+    // Create form data using the form-data package
+    const formData = new FormData();
+    formData.append('id_user', user_id.toString());
+    
+    // Append the file
+    formData.append('image', file);
+    
     const response = await api('storage/upload', {
         method: "POST",
         body: formData
@@ -44,9 +50,9 @@ export const getAllImages = async () => {
 
 export const getImage = async (idImage, ipContainer) => {
   try {
-    const response = await api('storage/get-image', {
+    const url = `storage/get-image?idImage=${idImage}&ipContainer=${ipContainer}`;
+    const response = await api(url, {
       method: 'GET',
-      body: JSON.stringify({ idImage, ipContainer }),
     });
     return response;
   } catch (error) {
