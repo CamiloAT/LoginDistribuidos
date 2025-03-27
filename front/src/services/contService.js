@@ -24,18 +24,6 @@ export const uploadImage = async (file, user_id) => {
   }
 };
 
-export const deleteImage = async (idImage) => {
-  try {
-    const response = await api(`storage/delete/${idImage}`, {
-        method: 'POST'
-    });
-
-    return response;
-  } catch (error) {
-    console.error(error);
-  }
-}
-
 export const getAllImages = async () => {
   try {
     const response = await api('storage/images', {
@@ -48,17 +36,17 @@ export const getAllImages = async () => {
   }
 }
 
-export const getImage = async (idImage, ipContainer) => {
-  try {
-    const url = `storage/get-image?idImage=${idImage}&ipContainer=${ipContainer}`;
-    const response = await api(url, {
-      method: 'GET',
-    });
-    return response;
-  } catch (error) {
-    console.error(error);
-  }
-};
+// export const getImage = async (idImage, ipContainer) => {
+//   try {
+//     const url = `storage/get-image?idImage=${idImage}&ipContainer=${ipContainer}`;
+//     const response = await api(url, {
+//       method: 'GET',
+//     });
+//     return response;
+//   } catch (error) {
+//     console.error(error);
+//   }
+// };
 
 export const getUserImages = async (idUser) => {
   try {
@@ -69,6 +57,22 @@ export const getUserImages = async (idUser) => {
     return response;
   } catch (error) {
     console.error(error);
+  }
+};
+
+export const deleteImage = async (idImage) => {
+
+  console.log("id: " + idImage)
+
+  try {
+    const response = await api(`storage/delete?imageId=${idImage}`, {
+      method: 'DELETE'
+    });
+
+    return response;
+  } catch (error) {
+    console.error(error);
+    throw error;
   }
 };
 
