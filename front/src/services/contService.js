@@ -6,7 +6,7 @@ export const uploadImage = async (file, user_id) => {
     formData.append('user_id', user_id);
     formData.append('file', file);
 
-    const response = await api('storage/upload', formData, {
+    const response = await api('storage/upload', {
         method: "POST",
         body: formData
     });
@@ -29,3 +29,29 @@ export const deleteImage = async (idImage) => {
     console.error(error);
   }
 }
+
+export const getAllImages = async () => {
+  try {
+    const response = await api('storage/images', {
+        method: 'GET'
+    });
+
+    return response;
+  } catch (error) {
+    console.error(error);
+  }
+}
+
+export const getImage = async (idImage, ipContainer) => {
+  try {
+    const response = await api('storage/get-image', {
+      method: 'GET',
+      body: JSON.stringify({ idImage, ipContainer }),
+    });
+    return response;
+  } catch (error) {
+    console.error(error);
+  }
+};
+
+

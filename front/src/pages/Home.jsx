@@ -10,6 +10,7 @@ import {
   Upload,
   Edit3
 } from 'lucide-react';
+import { getImage, getAllImages } from '../services/contService';
 
 export default function Home() {
   const { logout, getUser } = useAuth();
@@ -34,6 +35,51 @@ export default function Home() {
     { id: 9, url: 'https://encrypted-tbn0.gstatic.com/images?q=tbn:ANd9GcRMKESHPA_xjyJIU2e5Q10TW9Dmf2XXxyHyTg&s', title: 'Comida' },
     { id: 10, url: 'https://www.redaccion.com.ar/wp-content/uploads/2023/05/NICKI.jpg', title: 'Comida' }
   ];
+
+  // // Supongamos que getAllImages() retorna un arreglo de imágenes con la estructura definida en la BD
+  // const dataImages = getAllImages(); // Ejemplo: [{ image_id, user_id, image_name, path, creation_date }, ...]
+  // const realImages = [];
+
+  // dataImages.forEach(image => {
+  //   // Extraemos el id y el path
+  //   const { image_id, path } = image;
+
+  //   // Dividimos el path por "/"
+  //   const segments = path.split("400");
+
+  //   let ipContainer;
+    
+  //   // Verificamos si hay un segundo segmento y si tiene al menos un carácter
+  //   if (segments.length > 1 && segments[1].length > 0) {
+  //       const firstChar = segments[1][0]; // Tomamos el primer carácter del segundo segmento
+    
+  //       if (firstChar === "1") {
+  //           ipContainer = 4001;
+  //       } else if (firstChar === "2") {
+  //           ipContainer = 4002;
+  //       } else {
+  //           ipContainer = 4003;
+  //       }
+  //   } else {
+  //       console.error("No se encontró un puerto válido en el path:", path);
+  //       ipContainer = null; // O maneja el caso de error según lo que necesites
+  //   }    
+
+  //   if (ipContainer) {
+  //     // Llamamos al método getImage pasándole el id de la imagen y el puerto del contenedor
+  //     getImage(image_id, ipContainer)
+  //       .then(result => {
+  //         // Agregamos la imagen obtenida al arreglo
+  //         realImages.push(result);
+  //       })
+  //       .catch(error => {
+  //         console.error(`Error al obtener la imagen con id ${image_id}:`, error);
+  //       });
+  //   } else {
+  //     console.warn(`No se encontró un puerto válido en el path: ${path}`);
+  //   }
+  // });
+
 
   return (
     <div className="min-h-screen flex bg-gray-100">

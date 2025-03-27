@@ -41,9 +41,8 @@ export default function UploadImage() {
     const decoded = jwtDecode(token);
     const userId = decoded.userId;
 
-    console.log(file)
-
     try {
+
       const response = await uploadImage(file, userId);
       alert('Imagen subida correctamente');
       // Aquí puedes agregar lógica adicional, como redirigir o actualizar el estado global
