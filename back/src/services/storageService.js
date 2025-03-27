@@ -236,3 +236,31 @@ export const uploadImageToContainer = async (file, imageId) => {
   // This should never be reached as the loop will either return on success or throw on failure
   throw new Error('Failed to upload: unexpected error');
 };
+
+
+/**
+ * Get image by ID from a specific container
+ * @param {string} idImage - ID of the image to retrieve
+ * @param {string} ipContainer - IP address or port of the container
+ * @returns {Promise<Response>} Image response from the container
+ */
+export const getImageByIdForContainer = async (idImage, ipContainer) => {
+  try {
+    // Format the container IP correctly
+    const containerIP = formatContainerIP(ipContainer);
+    console.log(`Fetching image with ID ${idImage} from container: ${containerIP}`);
+    
+    // Make request to the container
+    const response = await fetchWithTimeout(`http://${containerIP}/image/${idImage}`);
+    
+    if (!response.ok) {
+      const errorText = await response.text();
+      throw new Error(`Failed to get image from ${containerIP}: ${errorText}`);
+    }
+    
+    return response;
+  } catch (error) {
+    console.error(`Error fetching image from container ${ipContainer}:`, error.message);
+    throw error;
+  }
+};

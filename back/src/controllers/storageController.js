@@ -1,5 +1,5 @@
 import { v4 as uuidv4 } from 'uuid';
-import { uploadImageToContainer } from '../services/storageService.js';
+import { uploadImageToContainer, getImageByIdForContainer } from '../services/storageService.js';
 import db from '../config/db.js';
 import { upload as uploadMiddleware } from '../config/multerConfig.js';
 
@@ -65,4 +65,54 @@ export const upload = async (req, res) => {
       return res.status(500).json({ message: 'Server error', details: error.message });
     }
   });
+};
+
+export const images = async (req, res) => {
+  try {
+    // Query to fetch all images from the database
+    const [rows] = await db.query(
+      'SELECT image_id, path FROM images ORDER BY creation_date DESC'
+    );
+    
+    // Return the list of images
+    return res.status(200).json(rows);
+  } catch (error) {
+    console.error('Error fetching images:', error);
+    return res.status(500).json({ 
+      success: false,
+      message: 'Error fetching images', 
+      details: error.message 
+    });
+  }
+};
+
+export const getImagesById = async (req, res) => {
+  try {
+    const { idImage, ipContainer } = req.query;
+    
+    // Validate required parameters
+    if (!idImage) {
+      return res.status(400).json({ message: 'Image ID is required' });
+    }
+    
+    if (!ipContainer) {
+      return res.status(400).json({ message: 'Container IP is required' });
+    }
+    
+    // Fetch the image from the container
+    const response = await getImageByIdForContainer(idImage, ipContainer);
+    
+    // Forward the response
+    const contentType = response.headers.get('content-type');
+    const buffer = await response.arrayBuffer();
+    
+    res.set('Content-Type', contentType);
+    return res.send(Buffer.from(buffer));
+  } catch (error) {
+    console.error('Error fetching image by ID:', error);
+    return res.status(500).json({ 
+      message: 'Failed to fetch image', 
+      details: error.message 
+    });
+  }
 };
