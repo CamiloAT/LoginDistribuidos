@@ -39,7 +39,7 @@ CREATE TABLE images (
     path VARCHAR(255) NOT NULL,
     creation_date TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
     FOREIGN KEY (user_id) REFERENCES users(user_id) ON DELETE CASCADE ON UPDATE CASCADE
-)
+);
 
 INSERT INTO roles (role_id, name, description) 
 VALUES (UUID(), 'admin', 'Administrator with full permissions');

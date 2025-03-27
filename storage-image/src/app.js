@@ -50,29 +50,52 @@ app.get('/get-available-storage', (req, res) => {
     }
 });
 
+const cpUpload = upload.fields([
+    { name: 'id_image', maxCount: 1 },
+    { name: 'image', maxCount: 1 }
+]);
+
 // Upload image
 app.post('/upload', (req, res) => {
-    // Use the upload middleware with a single file field named 'image'
-    upload.single('image')(req, res, function(err) {
+    cpUpload(req, res, function (err) {
         if (err) {
             return res.status(400).json({ error: err.message });
         }
         
-        if (!req.file) {
+        // Check if image file was provided
+        if (!req.files || !req.files.image || !req.files.image[0]) {
             return res.status(400).json({ error: 'No image file provided' });
         }
         
-        // Return success response with file information
-        res.status(201).json({
-            message: 'Image uploaded successfully',
-            image: {
-                id: req.body.id_image || path.basename(req.file.filename, path.extname(req.file.filename)),
-                filename: req.file.filename,
-                originalName: req.file.originalname,
-                mimetype: req.file.mimetype,
-                size: req.file.size,
-                path: req.file.path
+        // Get the image file from memory
+        const imageFile = req.files.image[0];
+        
+        // Generate ID for the image
+        const idImage = req.body.id_image || Date.now() + '-' + Math.round(Math.random() * 1E9);
+        
+        // Determine file extension
+        const extension = imageFile.originalname.split('.').pop();
+        const fileName = `${idImage}.${extension}`;
+        const filePath = path.join(uploadsDir, fileName);
+        
+        // Write the file to disk
+        fs.writeFile(filePath, imageFile.buffer, (err) => {
+            if (err) {
+                console.error('Error saving file:', err);
+                return res.status(500).json({ error: 'Error saving file' });
             }
+            
+            res.status(201).json({
+                message: 'Image uploaded successfully',
+                image: {
+                    id: idImage,
+                    filename: fileName,
+                    originalName: imageFile.originalname,
+                    mimetype: imageFile.mimetype,
+                    size: imageFile.size,
+                    path: filePath
+                }
+            });
         });
     });
 });
@@ -117,6 +140,66 @@ app.get('/download/:idimage', (req, res) => {
         const filePath = path.join(uploadsDir, targetFile);
         res.download(filePath);
     } catch (error) {
+        res.status(500).json({ error: error.message });
+    }
+});
+
+// Get image by ID
+app.get('/image/:idimage', (req, res) => {
+    try {
+        const { idimage } = req.params;
+        const files = fs.readdirSync(uploadsDir);
+        
+        // Find the file that starts with the provided ID
+        const targetFile = files.find(file => file.startsWith(idimage));
+        
+        if (!targetFile) {
+            return res.status(404).json({ error: 'Image not found' });
+        }
+        
+        // Construct full path ensuring we use uploads/images directory
+        const filePath = path.join(uploadsDir, targetFile);
+        
+        // Verify file exists
+        if (!fs.existsSync(filePath)) {
+            return res.status(404).json({ error: 'Image file not found on server' });
+        }
+        
+        // Determine the content type based on file extension
+        const extension = path.extname(targetFile).toLowerCase();
+        let contentType = 'application/octet-stream'; // default
+        
+        switch (extension) {
+            case '.jpg':
+            case '.jpeg':
+                contentType = 'image/jpeg';
+                break;
+            case '.png':
+                contentType = 'image/png';
+                break;
+            case '.gif':
+                contentType = 'image/gif';
+                break;
+            case '.webp':
+                contentType = 'image/webp';
+                break;
+            case '.svg':
+                contentType = 'image/svg+xml';
+                break;
+        }
+        
+        // Set content type header
+        res.setHeader('Content-Type', contentType);
+        
+        // Stream the file to the response
+        const stream = fs.createReadStream(filePath);
+        stream.on('error', (err) => {
+            console.error('Error streaming file:', err);
+            res.status(500).json({ error: 'Error reading image file' });
+        });
+        stream.pipe(res);
+    } catch (error) {
+        console.error('Error retrieving image:', error);
         res.status(500).json({ error: error.message });
     }
 });
