@@ -11,5 +11,6 @@ app.use(express.urlencoded({ extended: true }));
 
 app.use('/api/auth', authRoutes);
 
+
 // Export the app for use in index.js
 export default app;

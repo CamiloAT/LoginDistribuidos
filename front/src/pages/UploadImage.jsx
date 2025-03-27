@@ -3,8 +3,10 @@ import { useNavigate } from 'react-router-dom';
 import useAuth from '../hooks/useAuth';
 import { LogOut, Upload, Edit3 } from 'lucide-react';
 import { uploadImage } from '../services/contService';
+import {jwtDecode} from "jwt-decode";
 
 export default function UploadImage() {
+  const { token } = useAuth();
   const { logout, getUser } = useAuth();
   const [user, setUser] = useState(null);
   const navigate = useNavigate();
@@ -36,19 +38,19 @@ export default function UploadImage() {
       alert('No has seleccionado ningún archivo.');
       return;
     }
+    const decoded = jwtDecode(token);
+    const userId = decoded.userId;
 
-    setIsUploading(true);
+    console.log(file)
+
     try {
-      // Llamamos al servicio que envía la imagen al backend
-      const response = await uploadImage(file);
+      const response = await uploadImage(file, userId);
       alert('Imagen subida correctamente');
       // Aquí puedes agregar lógica adicional, como redirigir o actualizar el estado global
       console.log('Respuesta del backend:', response);
     } catch (error) {
       console.error('Error al subir la imagen:', error);
       alert('Error al subir la imagen');
-    } finally {
-      setIsUploading(false);
     }
   };
 
