@@ -2,11 +2,60 @@ import { useState, useEffect } from 'react';
 import { useNavigate } from 'react-router-dom';
 import useAuth from '../hooks/useAuth';
 import { LogOut, Upload, Edit3 } from 'lucide-react';
+import { getUserImages } from '../services/contService';
+import {jwtDecode} from "jwt-decode";
 
 export default function Profile() {
   const { logout, getUser } = useAuth();
   const [user, setUser] = useState(null);
   const navigate = useNavigate();
+  const { token } = useAuth();
+  const decoded = jwtDecode(token);
+  const userId = decoded.userId;
+
+  // Supongamos que getAllImages() retorna un arreglo de imágenes con la estructura definida en la BD
+  const dataImages = getUserImages(userId); // Ejemplo: [{ image_id, user_id, image_name, path, creation_date }, ...]
+  const realImages = [];
+
+  dataImages.forEach(image => {
+    // Extraemos el id y el path
+    const { image_id, path } = image;
+
+    // Dividimos el path por "/"
+    const segments = path.split("400");
+
+    let ipContainer;
+    
+    // Verificamos si hay un segundo segmento y si tiene al menos un carácter
+    if (segments.length > 1 && segments[1].length > 0) {
+        const firstChar = segments[1][0]; // Tomamos el primer carácter del segundo segmento
+    
+        if (firstChar === "1") {
+            ipContainer = 4001;
+        } else if (firstChar === "2") {
+            ipContainer = 4002;
+        } else {
+            ipContainer = 4003;
+        }
+    } else {
+        console.error("No se encontró un puerto válido en el path:", path);
+        ipContainer = null; // O maneja el caso de error según lo que necesites
+    }    
+
+    if (ipContainer) {
+      // Llamamos al método getImage pasándole el id de la imagen y el puerto del contenedor
+      getImage(image_id, ipContainer)
+        .then(result => {
+          // Agregamos la imagen obtenida al arreglo
+          realImages.push(result);
+        })
+        .catch(error => {
+          console.error(`Error al obtener la imagen con id ${image_id}:`, error);
+        });
+    } else {
+      console.warn(`No se encontró un puerto válido en el path: ${path}`);
+    }
+  });
 
   // Estados para editar el perfil
   const [profilePic, setProfilePic] = useState('');
