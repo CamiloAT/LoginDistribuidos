@@ -12,12 +12,15 @@ const storage = multer.diskStorage({
         let idimage = '';
         
         // Check if the idimage exists in the request body
-        if (req.body && req.body.idimage) {
-            idimage = req.body.idimage;
+        if (req.body.id_image) {
+            idimage = req.body.id_image;
         } else {
             // Fallback to a unique ID if idimage is not available
             idimage = Date.now() + '-' + Math.round(Math.random() * 1E9);
         }
+
+			console.log(req.body.id_image)
+			console.log("imagen " + idimage)
         
         const extension = file.originalname.split('.').pop();
         cb(null, `${idimage}.${extension}`);
