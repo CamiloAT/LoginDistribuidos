@@ -54,4 +54,16 @@ export const getImage = async (idImage, ipContainer) => {
   }
 };
 
+export const getUserImages = async (idUser) => {
+  try {
+    const response = await api(`storage/images/${idUser}`, {
+        method: 'GET'
+    });
+
+    return response;
+  } catch (error) {
+    console.error(error);
+  }
+};
+
 
