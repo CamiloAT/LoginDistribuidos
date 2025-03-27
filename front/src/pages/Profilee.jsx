@@ -1,78 +1,73 @@
 import { useState, useEffect } from 'react';
 import { useNavigate } from 'react-router-dom';
 import useAuth from '../hooks/useAuth';
-import { LogOut, Upload, Edit3 } from 'lucide-react';
-import { getUserImages } from '../services/contService';
-import {jwtDecode} from "jwt-decode";
+import { 
+  LogOut, 
+  Upload, 
+  Edit3, 
+} from 'lucide-react';
+import { getAllImages } from '../services/contService';
+import { jwtDecode } from "jwt-decode";
+
+import ImageCard from '../components/ImageCard';
 
 export default function Profile() {
   const { logout, getUser } = useAuth();
   const [user, setUser] = useState(null);
+  const [userImages, setUserImages] = useState([]);
+  const [loading, setLoading] = useState(true);
+  const [error, setError] = useState(null);
   const navigate = useNavigate();
   const { token } = useAuth();
-  const decoded = jwtDecode(token);
+  
+  // Get user ID from token
+  const decoded = token ? jwtDecode(token) : { userId: null };
   const userId = decoded.userId;
 
-  // Supongamos que getAllImages() retorna un arreglo de imágenes con la estructura definida en la BD
-  const dataImages = getUserImages(userId); // Ejemplo: [{ image_id, user_id, image_name, path, creation_date }, ...]
-  const realImages = [];
-
-  dataImages.forEach(image => {
-    // Extraemos el id y el path
-    const { image_id, path } = image;
-
-    // Dividimos el path por "/"
-    const segments = path.split("400");
-
-    let ipContainer;
-    
-    // Verificamos si hay un segundo segmento y si tiene al menos un carácter
-    if (segments.length > 1 && segments[1].length > 0) {
-        const firstChar = segments[1][0]; // Tomamos el primer carácter del segundo segmento
-    
-        if (firstChar === "1") {
-            ipContainer = 4001;
-        } else if (firstChar === "2") {
-            ipContainer = 4002;
-        } else {
-            ipContainer = 4003;
-        }
-    } else {
-        console.error("No se encontró un puerto válido en el path:", path);
-        ipContainer = null; // O maneja el caso de error según lo que necesites
-    }    
-
-    if (ipContainer) {
-      // Llamamos al método getImage pasándole el id de la imagen y el puerto del contenedor
-      getImage(image_id, ipContainer)
-        .then(result => {
-          // Agregamos la imagen obtenida al arreglo
-          realImages.push(result);
-        })
-        .catch(error => {
-          console.error(`Error al obtener la imagen con id ${image_id}:`, error);
-        });
-    } else {
-      console.warn(`No se encontró un puerto válido en el path: ${path}`);
-    }
-  });
-
-  // Estados para editar el perfil
+  // States for profile editing
   const [profilePic, setProfilePic] = useState('');
   const [phone, setPhone] = useState('');
 
+  // Fetch user data
   useEffect(() => {
     const userData = getUser ? getUser() : { name: 'User' };
     setUser(userData);
   }, [getUser]);
 
+  // Fetch user's images
+  useEffect(() => {
+    const fetchUserImages = async () => {
+      try {
+        setLoading(true);
+        // Get all images first
+        const allImages = await getAllImages();
+        
+        // Filter images to show only this user's images
+        const filteredImages = allImages.filter(image => image.user_id === userId);
+        
+        setUserImages(filteredImages);
+        setLoading(false);
+      } catch (err) {
+        console.error('Error fetching user images:', err);
+        setError('Failed to load your images. Please try again later.');
+        setLoading(false);
+      }
+    };
+
+    if (userId) {
+      fetchUserImages();
+    }
+  }, [userId]);
+
   const handleSaveProfile = () => {
     alert(`Perfil actualizado:\nFoto: ${profilePic}\nTeléfono: ${phone}`);
   };
 
+  console.log(userImages)
+
   return (
     <div className="min-h-screen flex bg-gray-100">
-      {/* Barra lateral fija */}
+      {/* Sidebar navigation */}
       <aside className="fixed left-0 top-0 h-full w-16 sm:w-20 bg-white shadow-md flex flex-col items-center py-4 space-y-4">
         {/* Botón de perfil (ya estamos en /profile) */}
         <button
@@ -137,6 +132,12 @@ export default function Profile() {
             <p className="mt-1 text-sm text-gray-500">
               Thank you for using our distributed authentication system.
             </p>
+          </div>
+
+          <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 lg:grid-cols-4 gap-4">
+            {userImages.map((img) => (
+              <ImageCard key={img.id} image={img} />
+            ))}
           </div>
 
           <div className="bg-white overflow-hidden shadow rounded-lg p-4">
