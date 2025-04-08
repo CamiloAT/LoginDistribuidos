@@ -1,0 +1,145 @@
+services:
+  mariadb-master:
+    image: mariadb:10.6
+    container_name: mariadb-master
+    environment:
+      MYSQL_ROOT_PASSWORD: 123456
+      MYSQL_DATABASE: gallery_db
+    volumes:
+      - ./init.sql:/docker-entrypoint-initdb.d/init.sql
+      - mariadb-master-data:/var/lib/mysql
+    ports:
+      - "3307:3306"
+    command: [ "mysqld", "--server-id=1", "--log-bin=master-bin", "--binlog-format=MIXED", "--binlog-do-db=gallery_db", "--max_connections=1000" ]
+    networks:
+      - db-network
+    healthcheck:
+      test: [ "CMD", "mysqladmin", "ping", "-h", "localhost", "-u", "root", "-p$$MYSQL_ROOT_PASSWORD" ]
+      interval: 10s
+      timeout: 5s
+      retries: 3
+      start_period: 30s
+    restart: unless-stopped
+
+  mariadb-slave1:
+    image: mariadb:10.6
+    container_name: mariadb-slave1
+    environment:
+      MYSQL_ROOT_PASSWORD: 123456
+      MYSQL_DATABASE: gallery_db
+      MASTER_HOST: mariadb-master
+      REPLICATION_USER: replicator
+      REPLICATION_PASSWORD: replicator123
+    ports:
+      - "3308:3306"
+    depends_on:
+      - mariadb-master
+    command: [ "mysqld", "--server-id=2", "--log-bin", "--relay-log=slave1-relay-bin", "--read-only=1", "--log-slave-updates=1", "--max_connections=1000" ]
+    volumes:
+      - ./slave-init.sh:/docker-entrypoint-initdb.d/slave-init.sh
+      - mariadb-slave1-data:/var/lib/mysql
+    networks:
+      - db-network
+    healthcheck:
+      test: [ "CMD", "mysqladmin", "ping", "-h", "localhost", "-u", "root", "-p$$MYSQL_ROOT_PASSWORD" ]
+      interval: 10s
+      timeout: 5s
+      retries: 3
+      start_period: 30s
+    restart: unless-stopped
+
+  mariadb-slave2:
+    image: mariadb:10.6
+    container_name: mariadb-slave2
+    environment:
+      MYSQL_ROOT_PASSWORD: 123456
+      MYSQL_DATABASE: gallery_db
+      MASTER_HOST: mariadb-master
+      REPLICATION_USER: replicator
+      REPLICATION_PASSWORD: replicator123
+    ports:
+      - "3309:3306"
+    depends_on:
+      - mariadb-master
+    command: [ "mysqld", "--server-id=3", "--log-bin", "--relay-log=slave2-relay-bin", "--read-only=1", "--log-slave-updates=1", "--max_connections=1000" ]
+    volumes:
+      - ./slave-init.sh:/docker-entrypoint-initdb.d/slave-init.sh
+      - mariadb-slave2-data:/var/lib/mysql
+    networks:
+      - db-network
+    healthcheck:
+      test: [ "CMD", "mysqladmin", "ping", "-h", "localhost", "-u", "root", "-p$$MYSQL_ROOT_PASSWORD" ]
+      interval: 10s
+      timeout: 5s
+      retries: 3
+      start_period: 30s
+    restart: unless-stopped
+
+  haproxy:
+    image: haproxy:2.6
+    container_name: haproxy
+    ports:
+      - "3310:3310"
+      - "8404:8404" # Puerto para estadísticas
+    volumes:
+      - ./haproxy.cfg:/usr/local/etc/haproxy/haproxy.cfg:ro
+    depends_on:
+      - mariadb-master
+      - mariadb-slave1
+      - mariadb-slave2
+    networks:
+      - db-network
+    restart: unless-stopped
+
+  # Monitoreo de salud del cluster
+  prometheus:
+    image: prom/prometheus:latest
+    container_name: prometheus
+    ports:
+      - "9090:9090"
+    volumes:
+      - ./prometheus.yml:/etc/prometheus/prometheus.yml
+      - prometheus-data:/prometheus
+    networks:
+      - db-network
+    restart: unless-stopped
+
+  grafana:
+    image: grafana/grafana:latest
+    container_name: grafana
+    ports:
+      - "3001:3000"
+    environment:
+      - GF_SECURITY_ADMIN_PASSWORD=admin123
+      - GF_USERS_ALLOW_SIGN_UP=false
+    volumes:
+      - grafana-data:/var/lib/grafana
+    depends_on:
+      - prometheus
+    networks:
+      - db-network
+    restart: unless-stopped
+  # db-manager:
+  #   image: debian:bullseye-slim
+  #   container_name: db-manager
+  #   volumes:
+  #     - /var/run/docker.sock:/var/run/docker.sock
+  #     - ./:/scripts # Monta el directorio actual en /scripts dentro del contenedor
+  #   command: >
+  #     bash -c "apt-get update && 
+  #              apt-get install -y docker.io mariadb-client net-tools procps curl sed &&
+  #              chmod +x /scripts/add-node.sh /scripts/failover-script.sh /scripts/slave-init.sh &&
+  #              tail -f /dev/null"
+  #   networks:
+  #     - db-network
+
+networks:
+  db-network:
+    driver: bridge
+
+volumes:
+  mariadb-master-data:
+  mariadb-slave1-data:
+  mariadb-slave2-data:
+  prometheus-data:
+  grafana-data:

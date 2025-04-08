@@ -1,4 +1,4 @@
-import { ip_container_1, ip_container_2, ip_container_3 } from "../config/index.js";
+import { ip_container_1, ip_container_2, ip_container_3, ip_container_4 } from "../config/index.js";
 import fs from 'fs';
 import path from 'path';
 import os from 'os';
@@ -19,7 +19,8 @@ const formatContainerIP = (ip) => {
 const containersIPs = [
   formatContainerIP(ip_container_1),
   formatContainerIP(ip_container_2),
-  formatContainerIP(ip_container_3)
+  formatContainerIP(ip_container_3),
+  formatContainerIP(ip_container_4)
 ];
 
 // Set timeout for fetch operations

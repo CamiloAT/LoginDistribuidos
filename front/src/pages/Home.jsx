@@ -1,4 +1,4 @@
-import { useState, useEffect } from 'react'; 
+import { useState, useEffect } from 'react';
 import { useNavigate } from 'react-router-dom';
 import useAuth from '../hooks/useAuth';
 import {
@@ -12,32 +12,29 @@ import { getAllImages } from '../services/contService';
 import ImageCard from '../components/ImageCard';
 
 export default function Home() {
-  const { logout, getUser } = useAuth();
+  const { logout, getEmail } = useAuth();
   const [user, setUser] = useState(null);
   const [images, setImages] = useState([]);
   const navigate = useNavigate();
 
   useEffect(() => {
-    const userData = getUser ? getUser() : { name: 'User' };
+    const userData = getEmail ? getEmail() : { name: 'User' };
     setUser(userData);
-  }, [getUser]);
+  }, [getEmail]);
 
   useEffect(() => {
     const fetchImages = async () => {
       try {
         const getImages = await getAllImages();
-        setImages(getImages); 
+        setImages(getImages);
       } catch (err) {
         console.error(err);
       }
-    } 
+    }
 
     fetchImages();
 
   }, [])
-
-  console.log(images);
-
   // Array de imágenes de ejemplo
   // const images = [
   //   { id: 1, url: 'https://img.freepik.com/vector-gratis/cute-cool-boy-dabbing-pose-dibujos-animados-vector-icono-ilustracion-concepto-icono-moda-personas-aislado_138676-5680.jpg', title: 'Naturaleza' },
@@ -134,7 +131,7 @@ export default function Home() {
         <main className="flex-1 p-6">
           <div className="mb-4">
             <p className="text-gray-700">
-              Bienvenido, <strong>{user?.name || 'User'}</strong>
+              Bienvenido, <strong>{user?.username || 'User'}</strong>
             </p>
           </div>
           <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 lg:grid-cols-4 gap-4">
