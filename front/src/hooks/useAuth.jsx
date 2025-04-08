@@ -1,6 +1,6 @@
 import { useState, useEffect, useCallback } from "react";
-import useLocalStorage from "./useLocalStorage"; 
-import {jwtDecode} from "jwt-decode"; 
+import useLocalStorage from "./useLocalStorage";
+import { jwtDecode } from "jwt-decode";
 
 const useAuth = () => {
     const [token, setToken, removeToken] = useLocalStorage("token", null);
@@ -40,18 +40,31 @@ const useAuth = () => {
     }, [token, logout]);
 
     const getRoles = () => {
-        if(token) {
+        if (token) {
             const decoded = jwtDecode(token);
             return decoded.roles || [];
         }
         return [];
     }
 
+    const getEmail = () => {
+        if (token) {
+            try {
+                const decoded = jwtDecode(token);
+                return decoded.email || '';
+            } catch (error) {
+                console.error("Error decoding token for email", error);
+                return '';
+            }
+        }
+        return '';
+    };
+
     useEffect(() => {
         validateToken();
     }, [validateToken]);
 
-    return { token, isAuthenticated, loading, logout, setToken, getRoles };
+    return { token, isAuthenticated, loading, logout, setToken, getRoles, getEmail };
 };
 
 export default useAuth;

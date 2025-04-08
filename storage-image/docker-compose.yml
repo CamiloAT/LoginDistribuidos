@@ -23,8 +23,17 @@ services:
       - "4003:3000"
     volumes:
       - storage3_data:/app/images
+  storage4:
+    build: .
+    container_name: storage4
+    ports:
+      - "4004:3000"
+    volumes:
+      - storage4_data:/app/images
+
 
 volumes:
   storage1_data:
   storage2_data:
   storage3_data:
+  storage4_data:

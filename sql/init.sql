@@ -1,3 +1,20 @@
+USE gallery_db;
+
+-- Crear usuario para replicación
+CREATE USER 'replicator'@'%' IDENTIFIED BY 'replicator123';
+GRANT REPLICATION SLAVE ON *.* TO 'replicator'@'%';
+
+-- Crear usuario para healthcheck de HAProxy
+CREATE USER 'haproxy'@'%';
+GRANT USAGE ON *.* TO 'haproxy'@'%';
+
+-- Crear usuario de aplicación con permisos limitados
+CREATE USER 'app_user'@'%' IDENTIFIED BY 'app_password';
+GRANT SELECT, INSERT, UPDATE, DELETE ON gallery_db.* TO 'app_user'@'%';
+
+FLUSH PRIVILEGES;
+
+-- Creación de tablas y datos
 CREATE TABLE users (
     user_id CHAR(36) PRIMARY KEY,
     name VARCHAR(100) NOT NULL,
@@ -5,7 +22,9 @@ CREATE TABLE users (
     password_hash VARCHAR(255) NOT NULL,
     status VARCHAR(255) NOT NULL,
     creation_date TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
-    failed_attempts INT DEFAULT 0
+    failed_attempts INT DEFAULT 0,
+    INDEX idx_email (email),
+    INDEX idx_status (status)
 );
 
 CREATE TABLE roles (
@@ -20,7 +39,8 @@ CREATE TABLE user_roles (
     role_id CHAR(36) NOT NULL,
     assignment_date TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
     FOREIGN KEY (user_id) REFERENCES users(user_id) ON DELETE CASCADE ON UPDATE CASCADE,
-    FOREIGN KEY (role_id) REFERENCES roles(role_id) ON DELETE CASCADE ON UPDATE CASCADE
+    FOREIGN KEY (role_id) REFERENCES roles(role_id) ON DELETE CASCADE ON UPDATE CASCADE,
+    INDEX idx_user_role (user_id, role_id)
 );
 
 CREATE TABLE access_history (
@@ -29,7 +49,8 @@ CREATE TABLE access_history (
     ip_address VARCHAR(45) NOT NULL,
     access_date TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
     access_successful TINYINT(1) NOT NULL,
-    FOREIGN KEY (user_id) REFERENCES users(user_id) ON DELETE CASCADE ON UPDATE CASCADE
+    FOREIGN KEY (user_id) REFERENCES users(user_id) ON DELETE CASCADE ON UPDATE CASCADE,
+    INDEX idx_user_access (user_id, access_date)
 );
 
 CREATE TABLE images (
@@ -38,9 +59,11 @@ CREATE TABLE images (
     image_name VARCHAR(100) NOT NULL,
     path VARCHAR(255) NOT NULL,
     creation_date TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
-    FOREIGN KEY (user_id) REFERENCES users(user_id) ON DELETE CASCADE ON UPDATE CASCADE
+    FOREIGN KEY (user_id) REFERENCES users(user_id) ON DELETE CASCADE ON UPDATE CASCADE,
+    INDEX idx_user_images (user_id)
 );
 
+-- Datos iniciales
 INSERT INTO roles (role_id, name, description) 
 VALUES (UUID(), 'admin', 'Administrator with full permissions');
 
