@@ -175,14 +175,15 @@ update_haproxy() {
   # Backup the original config
   cp ./haproxy.cfg ./haproxy.cfg.backup.$(date +%Y%m%d%H%M%S)
   
-  # Update the backend mysql_write section
-  sed -i "/backend mysql_write/,/server/s|server master.*|server master ${new_master}:3306 check|" ./haproxy.cfg
+  # Update the backend mysql_write section to point to the new master
+  sed -i "/backend mysql_write/,/server/s|server master.*|server master ${new_master}:3306 check weight 1 maxconn 1000|" ./haproxy.cfg
   
-  # Also update the master entry in the read_write backend
-  sed -i "/backend mysql_read_write/,/server slave/s|server master.*|server master ${new_master}:3306 check weight 1|" ./haproxy.cfg
+  # Update the master entry in the mysql_read backend
+  sed -i "/backend mysql_read/,/server slave/s|server master.*|server master ${new_master}:3306 check weight 1 maxconn 1000|" ./haproxy.cfg
   
-  # Remove the new master from the slave entries if it exists
-  sed -i "/server ${new_master}/d" ./haproxy.cfg
+  # If the new master was previously a slave, remove it from the slave entries
+  # to avoid duplicate server entries
+  grep -q "server $new_master" ./haproxy.cfg && sed -i "/server ${new_master}/d" ./haproxy.cfg
   
   # Reload HAProxy configuration
   docker kill -s HUP haproxy
@@ -225,11 +226,24 @@ EOF
     
     log "Successfully configured old master as slave of the new master"
     
-    # Update HAProxy to add old master as a slave
-    log "Adding old master as a slave in HAProxy configuration..."
-    sed -i "/backend mysql_read_write/a\\    server oldmaster mariadb-master:3306 check weight 3" ./haproxy.cfg
+    # Update HAProxy to add old master as a read-only slave
+    log "Updating HAProxy configuration for old master..."
+
+    # First, make sure old master is not in the write backend
+    if grep -q "server master mariadb-master:3306" ./haproxy.cfg; then
+      log "Removing old master from write backend..."
+      sed -i "/server master mariadb-master:3306/d" ./haproxy.cfg
+    fi
+
+    # Then add it to the read backend if not already there
+    if ! grep -q "server oldmaster mariadb-master:3306" ./haproxy.cfg; then
+      log "Adding old master to read backend..."
+      sed -i "/backend mysql_read/a\\    server oldmaster mariadb-master:3306 check weight 3 maxconn 800" ./haproxy.cfg
+    fi
+
+    # Reload HAProxy configuration
     docker kill -s HUP haproxy
-    log "HAProxy configuration updated to include old master as a slave"
+    log "HAProxy configuration updated to include old master as a read-only slave"
     return 0
   else
     log "Old master is still down"
