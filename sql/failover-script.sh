@@ -1,190 +1,372 @@
 #!/bin/bash
-# filepath: /home/elcokiin/Code/universidad/distribuidos/lab2/LoginDistribuidos/sql/failover-script.sh
+# Turn off debug mode for production
+set -e
 
-# Script de failover automático para el cluster MariaDB
-# Este script verifica el estado del master y promueve un slave si es necesario.
-
-# Configuración
-MASTER_CONTAINER="mariadb-master"
-SLAVE_CONTAINERS=("mariadb-slave1" "mariadb-slave2")
+# Configuration variables
 MYSQL_ROOT_PASSWORD="123456"
-HAPROXY_CONTAINER="haproxy"
-HAPROXY_CFG="/usr/local/etc/haproxy/haproxy.cfg"
-LOG_FILE="/var/log/mariadb-failover.log"
+REPLICATION_USER="replicator"
+REPLICATION_PASSWORD="replicator123"
+MASTER_HOST="mariadb-master"
+CHECK_INTERVAL=5  # Seconds between checks
+HEALTHCHECK_TIMEOUT=5  # Seconds before considering master down
+MAX_FAILURES=3  # Number of consecutive failures before triggering failover
+LOG_FILE="mariadb_failover.log"
 
-# Función para escribir en el log
+# Function to log messages with timestamp
 log() {
-    echo "$(date '+%Y-%m-%d %H:%M:%S') - $1" | tee -a $LOG_FILE
+  local message="$1"
+  local timestamp=$(date "+%Y-%m-%d %H:%M:%S")
+  echo "[$timestamp] $message" | tee -a "$LOG_FILE"
 }
 
-# Función para verificar si un contenedor está funcionando
-is_container_running() {
-    if [ "$(docker inspect -f '{{.State.Running}}' $1 2>/dev/null)" == "true" ]; then
-        return 0
-    else
-        return 1
-    fi
+# Function to check if master is healthy
+check_master_health() {
+  log "Checking master health..."
+  if docker exec $MASTER_HOST mysqladmin ping -h localhost -u root -p$MYSQL_ROOT_PASSWORD --silent &>/dev/null; then
+    log "Master is healthy"
+    return 0
+  else
+    log "WARNING: Master is not responding!"
+    return 1
+  fi
 }
 
-# Función para verificar si MariaDB está accesible en un contenedor
-is_mysql_accessible() {
-    container=$1
-    docker exec $container mysqladmin ping -h localhost -u root -p$MYSQL_ROOT_PASSWORD --silent &>/dev/null
-    return $?
-}
-
-# Función para verificar el estado de replicación de un slave
-check_slave_status() {
-    slave=$1
-    # Verifica que el slave esté conectado al master y replicando
-    docker exec $slave mysql -uroot -p$MYSQL_ROOT_PASSWORD -e "SHOW SLAVE STATUS\G" | grep -E "Slave_IO_Running: Yes|Slave_SQL_Running: Yes" | wc -l
-}
-
-# Función para encontrar el mejor slave para promoción
-find_best_slave() {
-    best_slave=""
-    max_position=0
-    
-    for slave in "${SLAVE_CONTAINERS[@]}"; do
-        if is_container_running $slave && is_mysql_accessible $slave; then
-            # Obtener posición de lectura en binlog
-            position=$(docker exec $slave mysql -uroot -p$MYSQL_ROOT_PASSWORD -e "SHOW SLAVE STATUS\G" | grep "Read_Master_Log_Pos" | awk '{print $2}')
-            
-            if [ -z "$best_slave" ] || [ $position -gt $max_position ]; then
-                best_slave=$slave
-                max_position=$position
-            fi
-        fi
-    done
-    
-    echo $best_slave
-}
-
-# Función para promover un slave a master
+# Function to promote a slave to master
 promote_slave_to_master() {
-    slave=$1
-    log "Promoviendo $slave a nuevo master..."
-    
-    # Detener replicación y configurar como master
-    docker exec $slave mysql -uroot -p$MYSQL_ROOT_PASSWORD -e "
-        STOP SLAVE;
-        RESET SLAVE ALL;
-        SET GLOBAL read_only=0;
-    "
-    
-    # Crear usuario de replicación en el nuevo master
-    docker exec $slave mysql -uroot -p$MYSQL_ROOT_PASSWORD -e "
-        CREATE USER IF NOT EXISTS 'replicator'@'%' IDENTIFIED BY 'replicator123';
-        GRANT REPLICATION SLAVE ON *.* TO 'replicator'@'%';
-        FLUSH PRIVILEGES;
-    "
-    
-    log "$slave ha sido promovido a master."
-    return 0
+  local new_master=$1
+  
+  # Validate that new_master contains a valid container name
+  if [[ -z "$new_master" || ! "$new_master" =~ mariadb-slave ]]; then
+    log "ERROR: Invalid slave name received: '$new_master'"
+    return 1
+  fi
+  
+  log "Promoting $new_master to master..."
+  
+  # First check if binary logging is enabled
+  local log_bin=$(docker exec $new_master mysql -u root -p"$MYSQL_ROOT_PASSWORD" -e "SHOW VARIABLES LIKE 'log_bin';" | grep log_bin | awk '{print $2}')
+  log "Binary logging status on $new_master: $log_bin"
+  
+  if [[ "$log_bin" != "ON" ]]; then
+    log "ERROR: Binary logging not enabled on $new_master, cannot promote!"
+    return 1
+  fi
+  
+  output=$(docker exec "$new_master" mysql -u root -p"$MYSQL_ROOT_PASSWORD" <<EOF
+STOP SLAVE;
+RESET SLAVE ALL;
+SET GLOBAL read_only = 0;
+FLUSH TABLES WITH READ LOCK;
+UNLOCK TABLES;
+EOF
+)
+  echo "Command output:"
+  echo "$output"
+
+  if [ $? -ne 0 ]; then
+    log "ERROR: Failed to promote $new_master to master"
+    return 1
+  fi
+
+  # Verify master status is working properly
+  local master_check=$(docker exec $new_master mysql -u root -p"$MYSQL_ROOT_PASSWORD" -e "SHOW MASTER STATUS\G")
+  if [ $? -ne 0 ] || [[ -z "$master_check" ]]; then
+    log "ERROR: Failed to get master status after promotion"
+    return 1
+  fi
+  
+  log "Successfully promoted $new_master to master"
+  # Update our global variable to track the new master
+  MASTER_HOST=$new_master
+  return 0
 }
 
-# Función para configurar los slaves para replicar desde el nuevo master
+# Function to reconfigure other slaves to point to the new master
 reconfigure_slaves() {
-    new_master=$1
+  local new_master=$1
+  log "Reconfiguring other slaves to point to new master: $new_master..."
+  
+  # Give the new master a moment to stabilize
+  sleep 5
+  
+  # Get IP address of the new master
+  local master_ip=$(docker inspect -f '{{range .NetworkSettings.Networks}}{{.IPAddress}}{{end}}' $new_master)
+  log "New master IP address: $master_ip"
+  
+  # Get master status from the new master
+  local master_status=$(docker exec $new_master mysql -u root -p"$MYSQL_ROOT_PASSWORD" -e "SHOW MASTER STATUS\G")
+  local master_log_file=$(echo "$master_status" | grep "File:" | awk '{print $2}')
+  local master_log_pos=$(echo "$master_status" | grep "Position:" | awk '{print $2}')
+  
+  if [[ -z "$master_log_file" || -z "$master_log_pos" ]]; then
+    log "ERROR: Could not get master log file or position from new master"
+    return 1
+  fi
+  
+  log "New master log file: $master_log_file, position: $master_log_pos"
+  
+  # Update each slave to point to the new master - USE IP ADDRESS DIRECTLY
+  for container in $(docker ps --format '{{.Names}}' | grep 'mariadb-slave'); do
+    # Skip the new master
+    if [[ "$container" == "$new_master" ]]; then
+      log "Skipping $container as it's the new master"
+      continue
+    fi
     
-    # Obtener información del binlog del nuevo master
-    binlog_file=$(docker exec $new_master mysql -uroot -p$MYSQL_ROOT_PASSWORD -e "SHOW MASTER STATUS\G" | grep "File" | awk '{print $2}')
-    binlog_pos=$(docker exec $new_master mysql -uroot -p$MYSQL_ROOT_PASSWORD -e "SHOW MASTER STATUS\G" | grep "Position" | awk '{print $2}')
+    log "Reconfiguring slave: $container to use master IP: $master_ip"
     
-    for slave in "${SLAVE_CONTAINERS[@]}"; do
-        if [ "$slave" != "$new_master" ] && is_container_running $slave && is_mysql_accessible $slave; then
-            log "Reconfigurando $slave para replicar desde $new_master..."
-            
-            docker exec $slave mysql -uroot -p$MYSQL_ROOT_PASSWORD -e "
-                STOP SLAVE;
-                RESET SLAVE ALL;
-                CHANGE MASTER TO
-                    MASTER_HOST='$new_master',
-                    MASTER_USER='replicator',
-                    MASTER_PASSWORD='replicator123',
-                    MASTER_LOG_FILE='$binlog_file',
-                    MASTER_LOG_POS=$binlog_pos;
-                START SLAVE;
-                SET GLOBAL read_only=1;
-            "
-            
-            log "$slave ahora está replicando desde $new_master."
-        fi
-    done
-}
-
-# Función para actualizar la configuración de HAProxy
-update_haproxy_config() {
-    new_master=$1
-    log "Actualizando configuración de HAProxy para apuntar al nuevo master $new_master..."
+    # Force direct IP address usage
+    docker exec $container bash -c "mysql -u root -p\"$MYSQL_ROOT_PASSWORD\" -e \"
+      STOP SLAVE;
+      RESET SLAVE ALL;
+      CHANGE MASTER TO
+        MASTER_HOST='$master_ip',
+        MASTER_USER='$REPLICATION_USER',
+        MASTER_PASSWORD='$REPLICATION_PASSWORD',
+        MASTER_LOG_FILE='$master_log_file',
+        MASTER_LOG_POS=$master_log_pos;
+      START SLAVE;
+      SHOW SLAVE STATUS\\G
+    \"" > /tmp/slave_status_$container.log
     
-    # Backup de la configuración
-    docker exec $HAPROXY_CONTAINER cp $HAPROXY_CFG ${HAPROXY_CFG}.bak
-    
-    # Actualizar configuración
-    docker exec $HAPROXY_CONTAINER sed -i "s/server master mariadb-master:3306/server master $new_master:3306/g" $HAPROXY_CFG
-    
-    # Verificar y recargar configuración
-    if docker exec $HAPROXY_CONTAINER haproxy -c -f $HAPROXY_CFG; then
-        docker exec $HAPROXY_CONTAINER haproxy -f $HAPROXY_CFG -p /var/run/haproxy.pid -D -sf $(docker exec $HAPROXY_CONTAINER cat /var/run/haproxy.pid)
-        log "Configuración de HAProxy actualizada y recargada."
-        return 0
+    # Verify the configuration worked immediately by checking the output
+    if grep -q "Master_Host: $master_ip" /tmp/slave_status_$container.log; then
+      log "SUCCESS: Slave $container confirmed connected to new master IP: $master_ip"
     else
-        log "ERROR: Configuración de HAProxy inválida. Restaurando configuración anterior."
-        docker exec $HAPROXY_CONTAINER cp ${HAPROXY_CFG}.bak $HAPROXY_CFG
-        return 1
+      log "WARNING: Slave $container may not be properly configured. Check /tmp/slave_status_$container.log"
+      
+      log "Trying alternative approach for $container"
+      docker exec $container bash -c "mysql -u root -p\"$MYSQL_ROOT_PASSWORD\" -e \"
+        STOP SLAVE;
+        RESET MASTER;
+        RESET SLAVE ALL;
+        SET GLOBAL master_host='$master_ip';
+        SET GLOBAL master_user='$REPLICATION_USER';
+        SET GLOBAL master_password='$REPLICATION_PASSWORD';
+        SET GLOBAL master_log_file='$master_log_file';
+        SET GLOBAL master_log_pos=$master_log_pos;
+        START SLAVE;
+        SHOW SLAVE STATUS\\G
+      \"" > /tmp/slave_status_alt_$container.log
     fi
+  done
+  
+  # Final verification after a short wait
+  sleep 5
+  log "Verifying all slaves after reconfiguration:"
+  for container in $(docker ps --format '{{.Names}}' | grep 'mariadb-slave'); do
+    if [[ "$container" == "$new_master" ]]; then
+      continue
+    fi
+    
+    local status=$(docker exec $container mysql -u root -p"$MYSQL_ROOT_PASSWORD" -e "SHOW SLAVE STATUS\G")
+    local current_master=$(echo "$status" | grep "Master_Host:" | awk '{print $2}')
+    log "Final check: $container is replicating from: $current_master"
+  done
+  
+  return 0
 }
 
-# Función principal para verificar el master y realizar failover si es necesario
-check_and_failover() {
-    log "Verificando estado del master $MASTER_CONTAINER..."
+# Function to update HAProxy configuration
+update_haproxy() {
+  local new_master=$1
+  log "Updating HAProxy configuration to use $new_master as the master..."
+  
+  # Backup the original config
+  cp ./haproxy.cfg ./haproxy.cfg.backup.$(date +%Y%m%d%H%M%S)
+  
+  # Update the backend mysql_write section
+  sed -i "/backend mysql_write/,/server/s|server master.*|server master ${new_master}:3306 check|" ./haproxy.cfg
+  
+  # Also update the master entry in the read_write backend
+  sed -i "/backend mysql_read_write/,/server slave/s|server master.*|server master ${new_master}:3306 check weight 1|" ./haproxy.cfg
+  
+  # Remove the new master from the slave entries if it exists
+  sed -i "/server ${new_master}/d" ./haproxy.cfg
+  
+  # Reload HAProxy configuration
+  docker kill -s HUP haproxy
+  
+  log "HAProxy configuration updated and reloaded"
+  return 0
+}
+
+# Function to handle the old master when it comes back
+handle_old_master() {
+  local new_master=$1
+  log "Monitoring for old master to come back online..."
+  
+  # Check if old master is back
+  if docker exec mariadb-master mysqladmin ping -h localhost -u root -p$MYSQL_ROOT_PASSWORD --silent &>/dev/null; then
+    log "Old master is back online. Configuring it as a slave..."
     
-    # Verificar si el master está funcionando
-    if is_container_running $MASTER_CONTAINER && is_mysql_accessible $MASTER_CONTAINER; then
-        log "Master $MASTER_CONTAINER está funcionando correctamente."
-        return 0
+    # Get master status from the new master
+    local master_status=$(docker exec $new_master mysql -u root -p$MYSQL_ROOT_PASSWORD -e "SHOW MASTER STATUS\G")
+    local master_log_file=$(echo "$master_status" | grep "File:" | awk '{print $2}')
+    local master_log_pos=$(echo "$master_status" | grep "Position:" | awk '{print $2}')
+    
+    # Reset the old master and make it a slave of the new master
+    docker exec mariadb-master mysql -u root -p$MYSQL_ROOT_PASSWORD <<EOF
+RESET MASTER;
+SET GLOBAL read_only = 1;
+CHANGE MASTER TO
+  MASTER_HOST='$new_master',
+  MASTER_USER='$REPLICATION_USER',
+  MASTER_PASSWORD='$REPLICATION_PASSWORD',
+  MASTER_LOG_FILE='$master_log_file',
+  MASTER_LOG_POS=$master_log_pos;
+START SLAVE;
+EOF
+    
+    if [ $? -ne 0 ]; then
+      log "ERROR: Failed to configure old master as slave"
+      return 1
     fi
     
-    log "ALERTA: Master $MASTER_CONTAINER no está accesible. Iniciando proceso de failover..."
+    log "Successfully configured old master as slave of the new master"
     
-    # Encontrar el mejor slave para promoción
-    new_master=$(find_best_slave)
-    if [ -z "$new_master" ]; then
-        log "ERROR: No se encontró ningún slave candidato para failover."
-        return 1
-    fi
-    
-    log "Seleccionado $new_master como nuevo master."
-    
-    # Promover el slave a master
-    if ! promote_slave_to_master $new_master; then
-        log "ERROR: Falló la promoción de $new_master a master."
-        return 1
-    fi
-    
-    # Reconfigurar los slaves restantes
-    reconfigure_slaves $new_master
-    
-    # Actualizar HAProxy
-    if ! update_haproxy_config $new_master; then
-        log "ERROR: Falló la actualización de HAProxy."
-        return 1
-    fi
-    
-    log "Failover completado exitosamente. Nuevo master: $new_master"
+    # Update HAProxy to add old master as a slave
+    log "Adding old master as a slave in HAProxy configuration..."
+    sed -i "/backend mysql_read_write/a\\    server oldmaster mariadb-master:3306 check weight 3" ./haproxy.cfg
+    docker kill -s HUP haproxy
+    log "HAProxy configuration updated to include old master as a slave"
     return 0
+  else
+    log "Old master is still down"
+    return 1
+  fi
 }
 
-# Crear directorio de logs si no existe
-mkdir -p $(dirname $LOG_FILE)
+# Function to find the best slave for promotion
+find_best_slave() {
+  log "Finding the best slave for promotion..." >&2
+  local best_slave=""
+  local min_lag=999999
+  local first_healthy_slave=""
 
-# Comprobar si se está ejecutando como root o con sudo
-if [ "$EUID" -ne 0 ]; then
-    log "ADVERTENCIA: Este script podría requerir privilegios elevados."
-fi
+  # Get list of slave containers
+  for container in $(docker ps --format '{{.Names}}' | grep 'mariadb-slave'); do
+    log "Checking slave: $container" >&2
+    
+    # Check if slave is healthy
+    if ! docker exec $container mysqladmin ping -h localhost -u root -p$MYSQL_ROOT_PASSWORD --silent &>/dev/null; then
+      log "Slave $container is not healthy, skipping" >&2
+      continue
+    fi
+    
+    # Check replication status
+    local status=$(docker exec $container mysql -u root -p$MYSQL_ROOT_PASSWORD -e "SHOW SLAVE STATUS\G")
+    local io_running=$(echo "$status" | grep "Slave_IO_Running:" | awk '{print $2}')
+    local sql_running=$(echo "$status" | grep "Slave_SQL_Running:" | awk '{print $2}')
+    
+    # Store first healthy slave we find (even if IO_Running is Connecting instead of Yes)
+    if [[ -z "$first_healthy_slave" && "$sql_running" == "Yes" ]]; then
+      first_healthy_slave=$container
+      log "Found first healthy slave: $first_healthy_slave" >&2
+    fi
+    
+    if [[ "$io_running" != "Yes" && "$io_running" != "Connecting" || "$sql_running" != "Yes" ]]; then
+      log "Slave $container replication is not healthy (IO: $io_running, SQL: $sql_running), skipping" >&2
+      continue
+    fi
+    
+    # Get the replication lag
+    local seconds_behind=$(echo "$status" | grep "Seconds_Behind_Master:" | awk '{print $2}')
+    
+    # If seconds_behind is NULL, just log but don't skip
+    if [[ "$seconds_behind" == "NULL" ]]; then
+      log "Slave $container has NULL lag, continuing to consider it" >&2
+      continue
+    fi
+    
+    log "Slave $container lag: $seconds_behind seconds" >&2
+    
+    # Choose the slave with the least lag
+    if [[ $seconds_behind -lt $min_lag ]]; then
+      min_lag=$seconds_behind
+      best_slave=$container
+    fi
+  done
+  
+  # If we couldn't find a slave with numeric lag, use the first healthy slave we found
+  if [[ -z "$best_slave" && -n "$first_healthy_slave" ]]; then
+    best_slave=$first_healthy_slave
+    log "No slave with numeric lag found. Using first healthy slave: $best_slave" >&2
+  fi
+  
+  if [[ -z "$best_slave" ]]; then
+    log "ERROR: No suitable slave found for promotion!" >&2
+    return 1
+  fi
+  
+  log "Selected $best_slave as the best candidate for promotion" >&2
+  # Only output the container name, nothing else
+  echo "$best_slave"
+}
 
-# Ejecutar la verificación y failover
-check_and_failover
+# Main function to monitor master and trigger failover
+monitor_and_failover() {
+  log "Starting MariaDB cluster monitoring..."
+  local failures=0
+  
+  while true; do
+    if ! check_master_health; then
+      failures=$((failures+1))
+      log "Master health check failed ($failures/$MAX_FAILURES)"
+      
+      if [ $failures -ge $MAX_FAILURES ]; then
+        log "CRITICAL: Master node is considered DOWN. Initiating failover procedure..."
+        
+        # Find the best slave to promote - capture only the container name
+        local best_slave=$(find_best_slave)
+        if [ $? -ne 0 ] || [ -z "$best_slave" ]; then
+          log "ERROR: Failed to find a suitable slave for promotion. Manual intervention required!"
+          sleep 60  # Wait before retrying
+          continue
+        fi
+        
+        # Store the new master name in a variable
+        local new_master="$best_slave"
+        
+        # Promote the selected slave to be the new master
+        if ! promote_slave_to_master "$new_master"; then
+          log "ERROR: Failed to promote slave to master. Manual intervention required!"
+          sleep 60
+          continue
+        fi
+        
+        # Reconfigure remaining slaves to point to the new master
+        if ! reconfigure_slaves "$new_master"; then
+          log "WARNING: Some slaves might not be properly reconfigured."
+        fi
+        
+        # Update HAProxy configuration
+        update_haproxy "$new_master"
+        
+        log "Failover completed successfully. New master is: $new_master"
+        
+        # Reset failure counter
+        failures=0
+        
+        # Monitor for the old master coming back online
+        log "Will check periodically if old master comes back online..."
+        # We don't want to wait here, continue with the main loop
+      fi
+    else
+      # Master is healthy, try to handle old master if we previously had a failover
+      if [ "$MASTER_HOST" != "mariadb-master" ]; then
+        if handle_old_master "$MASTER_HOST"; then
+          log "Old master is now a slave. Continuing monitoring..."
+        fi
+      fi
+      
+      # Reset failure counter if master is healthy
+      failures=0
+    fi
+    
+    sleep $CHECK_INTERVAL
+  done
+}
 
-exit $?
+# Execute the main function
+monitor_and_failover

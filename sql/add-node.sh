@@ -73,8 +73,8 @@ docker exec $NODE_NAME mysql -u root -p$MYSQL_ROOT_PASSWORD -e "SHOW SLAVE STATU
 echo "🔄 Actualizando configuración de HAProxy"
 # Verificar si existe la línea del servidor en haproxy.cfg
 if ! grep -q "server $NODE_NAME" ./haproxy.cfg; then
-  # Añadir el nuevo servidor a la configuración
-  sed -i "/backend mysql_read_write/a\\    server $NODE_NAME $NODE_NAME:3306 check weight 3" ./haproxy.cfg
+  # Añadir el nuevo servidor a la configuración después del último slave
+  sed -i "/server slave[0-9]* mariadb-slave[0-9]*:3306 check weight 3/a\\    server $NODE_NAME $NODE_NAME:3306 check weight 3" ./haproxy.cfg
   
   # Recargar configuración de HAProxy
   docker kill -s HUP haproxy
