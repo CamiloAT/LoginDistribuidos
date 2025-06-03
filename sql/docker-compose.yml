@@ -9,10 +9,10 @@ services:
       - ./init.sql:/docker-entrypoint-initdb.d/init.sql
       - mariadb-master-data:/var/lib/mysql
     ports:
-      - "3307:3306"
+      - "3307:3306" # Puerto directo del master (útil para depuración)
     command: [ "mysqld", "--server-id=1", "--log-bin=master-bin", "--binlog-format=MIXED", "--binlog-do-db=gallery_db", "--max_connections=1000" ]
     networks:
-      - db-network
+      - gallery-network
     healthcheck:
       test: [ "CMD", "mysqladmin", "ping", "-h", "localhost", "-u", "root", "-p$$MYSQL_ROOT_PASSWORD" ]
       interval: 10s
@@ -31,15 +31,16 @@ services:
       REPLICATION_USER: replicator
       REPLICATION_PASSWORD: replicator123
     ports:
-      - "3308:3306"
+      - "3308:3306" # Puerto directo del slave1 (útil para depuración)
     depends_on:
-      - mariadb-master
+      - mariadb-master # Asegura que el master esté arriba antes que el slave
     command: [ "mysqld", "--server-id=2", "--log-bin", "--relay-log=slave1-relay-bin", "--read-only=1", "--log-slave-updates=1", "--max_connections=1000" ]
     volumes:
+      # El script slave-init.sh debería configurar la replicación después de que el contenedor inicie
       - ./slave-init.sh:/docker-entrypoint-initdb.d/slave-init.sh
       - mariadb-slave1-data:/var/lib/mysql
     networks:
-      - db-network
+      - gallery-network
     healthcheck:
       test: [ "CMD", "mysqladmin", "ping", "-h", "localhost", "-u", "root", "-p$$MYSQL_ROOT_PASSWORD" ]
       interval: 10s
@@ -58,15 +59,16 @@ services:
       REPLICATION_USER: replicator
       REPLICATION_PASSWORD: replicator123
     ports:
-      - "3309:3306"
+      - "3309:3306" # Puerto directo del slave2 (útil para depuración)
     depends_on:
-      - mariadb-master
+      - mariadb-master # Asegura que el master esté arriba antes que el slave
     command: [ "mysqld", "--server-id=3", "--log-bin", "--relay-log=slave2-relay-bin", "--read-only=1", "--log-slave-updates=1", "--max_connections=1000" ]
     volumes:
+      # El script slave-init.sh debería configurar la replicación después de que el contenedor inicie
       - ./slave-init.sh:/docker-entrypoint-initdb.d/slave-init.sh
       - mariadb-slave2-data:/var/lib/mysql
     networks:
-      - db-network
+      - gallery-network
     healthcheck:
       test: [ "CMD", "mysqladmin", "ping", "-h", "localhost", "-u", "root", "-p$$MYSQL_ROOT_PASSWORD" ]
       interval: 10s
@@ -79,8 +81,9 @@ services:
     image: haproxy:2.6
     container_name: haproxy
     ports:
-      - "3310:3310"
-      - "8404:8404" # Puerto para estadísticas
+      - "3310:3310" # Puerto para operaciones de ESCRITURA (apunta al master)
+      - "3311:3311" # Puerto para operaciones de LECTURA (balancea a los slaves)
+      - "8404:8404" # Puerto para estadísticas de HAProxy
     volumes:
       - ./haproxy.cfg:/usr/local/etc/haproxy/haproxy.cfg:ro
     depends_on:
@@ -88,7 +91,7 @@ services:
       - mariadb-slave1
       - mariadb-slave2
     networks:
-      - db-network
+      - gallery-network
     restart: unless-stopped
 
   # Monitoreo de salud del cluster
@@ -101,41 +104,50 @@ services:
       - ./prometheus.yml:/etc/prometheus/prometheus.yml
       - prometheus-data:/prometheus
     networks:
-      - db-network
+      - gallery-network
     restart: unless-stopped
 
   grafana:
     image: grafana/grafana:latest
     container_name: grafana
     ports:
-      - "3001:3000"
+      - "3001:3000" # Accede a Grafana en localhost:3001
     environment:
-      - GF_SECURITY_ADMIN_PASSWORD=admin123
+      - GF_SECURITY_ADMIN_PASSWORD=admin123 # ¡Cambia esto para producción!
       - GF_USERS_ALLOW_SIGN_UP=false
     volumes:
       - grafana-data:/var/lib/grafana
     depends_on:
       - prometheus
     networks:
-      - db-network
+      - gallery-network
     restart: unless-stopped
+  # db-manager (opcional, para scripts de gestión manual o automática)
+  # Este servicio es útil si necesitas ejecutar scripts de Docker o MySQL
+  # desde un contenedor que tenga acceso a Docker.
+  # Descomenta si lo necesitas, y asegúrate de tener los scripts adecuados.
   # db-manager:
   #   image: debian:bullseye-slim
   #   container_name: db-manager
   #   volumes:
-  #     - /var/run/docker.sock:/var/run/docker.sock
-  #     - ./:/scripts # Monta el directorio actual en /scripts dentro del contenedor
+  #     - /var/run/docker.sock:/var/run/docker.sock # Permite interactuar con Docker desde dentro
+  #     - ./:/scripts # Monta el directorio actual donde estarán tus scripts (e.g., add-node.sh, failover-script.sh)
   #   command: >
-  #     bash -c "apt-get update && 
+  #     bash -c "apt-get update &&
   #              apt-get install -y docker.io mariadb-client net-tools procps curl sed &&
-  #              chmod +x /scripts/add-node.sh /scripts/failover-script.sh /scripts/slave-init.sh &&
-  #              tail -f /dev/null"
+  #              chmod +x /scripts/*.sh && # Asegura que tus scripts sean ejecutables
+  #              tail -f /dev/null" # Mantiene el contenedor en ejecución
   #   networks:
-  #     - db-network
+  #     - gallery-network
+  #   depends_on:
+  #     - mariadb-master
+  #     - mariadb-slave1
+  #     - mariadb-slave2 # Asegura que las DBs estén listas antes de que db-manager intente algo
+  #   restart: on-failure
 
 networks:
-  db-network:
-    driver: bridge
+  gallery-network:
+    external: true
 
 volumes:
   mariadb-master-data:

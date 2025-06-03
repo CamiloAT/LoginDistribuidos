@@ -5,6 +5,6 @@ export const generateToken = (userId, email, roles) => {
     return jwt.sign({ userId, email, roles }, jwt_secret, { expiresIn: '1h' });
 }
 
-export const veryfyToken = (token) => {
+export const verifyToken = (token) => {
     return jwt.verify(token, jwt_secret)
 }   

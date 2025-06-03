@@ -1,4 +1,3 @@
-version: "3.8"
 services:
   storage1:
     build: .
@@ -30,7 +29,6 @@ services:
       - "4004:3000"
     volumes:
       - storage4_data:/app/images
-
 
 volumes:
   storage1_data:
