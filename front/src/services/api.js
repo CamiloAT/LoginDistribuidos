@@ -1,4 +1,4 @@
-const base_api = "http://localhost:3000/api";
+const base_api = import.meta.env.VITE_BASE_API || "http://localhost:3000/api";
 
 export default async (endpoint, options = {}) => {
   const token = localStorage.getItem("token");

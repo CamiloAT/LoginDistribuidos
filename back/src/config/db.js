@@ -1,9 +1,14 @@
+// db.js
 import mysql from 'mysql2/promise';
-import { uri_db as uri } from './index.js';
 
-const pool = mysql.createPool({
-    uri,
-    connectionLimit: 10, 
-  });
-  
-  export default pool;
+const writePool = mysql.createPool({
+  uri: process.env.MYSQL_WRITE_URI,
+  connectionLimit: 10,
+});
+
+const readPool = mysql.createPool({
+  uri: process.env.MYSQL_READ_URI,
+  connectionLimit: 10,
+});
+
+export { writePool, readPool };

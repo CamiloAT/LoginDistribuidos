@@ -1,0 +1,25 @@
+services:
+  manage-image:
+    build:
+      context: .
+      dockerfile: Dockerfile
+    container_name: manage-image
+    ports:
+      - "8001:3000"
+    environment:
+      - NODE_ENV=development
+      - MYSQL_WRITE_URI=${MYSQL_WRITE_URI}
+      - MYSQL_READ_URI=${MYSQL_READ_URI}
+      - JWT_SECRET=${JWT_SECRET}
+      - EMAIL_USER=${EMAIL_USER}
+      - EMAIL_PASS=${EMAIL_PASS}
+    volumes:
+      - .:/app
+      - /app/node_modules
+    restart: unless-stopped
+    networks:
+      - gallery-network
+
+networks:
+  gallery-network:
+    external: true

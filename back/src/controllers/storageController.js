@@ -1,7 +1,9 @@
 import { v4 as uuidv4 } from 'uuid';
 import { uploadImageToContainer } from '../services/storageService.js';
-import db from '../config/db.js';
+import { readPool, writePool } from '../config/db.js';
 import { upload as uploadMiddleware } from '../config/multerConfig.js';
+
+import { description_ia_url } from '../config/index.js';
 
 const cpUpload = uploadMiddleware.fields([
   { name: 'id_user', maxCount: 1 },
@@ -10,59 +12,110 @@ const cpUpload = uploadMiddleware.fields([
 
 export const upload = async (req, res) => {
   cpUpload(req, res, async function (err) {
+    let uploadResult;
     try {
+      // 1. Error in Multer middleware
       if (err) {
         console.error('Multer error:', err);
         return res.status(400).json({ message: err.message });
       }
-      
-      // Check if image file was provided
+
+      // 2. Validar que venga archivo
       if (!req.files || !req.files.image || !req.files.image[0]) {
         return res.status(400).json({ message: 'Please provide a file' });
       }
-      
+
       const file = req.files.image[0];
-      const userId = req.body.id_user || 'anonymous'; // Default if missing
-      
-      console.log(`Processing upload for file: ${file.originalname}, size: ${file.size} bytes`);
-      
-      // Ensure file has a buffer
+      const userId = req.body.id_user || 'anonymous';
+
+      console.log(
+        `Processing upload for file: ${file.originalname}, size: ${file.size} bytes`
+      );
+
+      // 3. Verificar buffer
       if (!file.buffer || file.buffer.length === 0) {
         return res.status(400).json({ message: 'Empty file provided' });
       }
-      
-      // Create a unique ID for the image
+
+      // 4. Crear un ID único para la imagen
       const imageId = uuidv4();
-      
+
+      // 5. Intentar enviar el archivo al contenedor
       try {
-        // Send the file to the storage container
-        const uploadResult = await uploadImageToContainer(file, imageId);
-        
-        console.log('Upload successful:', uploadResult);
-        
-        // Build the download path
-        const downloadPath = `http://${uploadResult.containerIP}/image/${uploadResult.image.id}`;
-        
-        // Store record in database
-        await db.query(
+        uploadResult = await uploadImageToContainer(file, imageId);
+        console.log('Upload to container successful:', uploadResult);
+      } catch (uploadError) {
+        console.error('Upload to container failed:', uploadError);
+        return res.status(500).json({
+          message: 'Upload to storage container failed',
+          error: uploadError.message,
+        });
+      }
+
+      // 6. Construir la ruta de descarga
+      //    uploadResult.containerIP debería venir de uploadImageToContainer
+      //    uploadResult.image.id = imageId (usamos el mismo ID)
+      const downloadPath = `http://${uploadResult.containerIP}/image/${imageId}`;
+
+      // 7. Intentar insertar registro en BD
+      try {
+        await writePool.query(
           'INSERT INTO images (image_id, user_id, image_name, path) VALUES (?, ?, ?, ?)',
           [imageId, userId, file.originalname, downloadPath]
         );
-        
-        return res.status(201).json({ 
+
+        return res.status(201).json({
           imageId,
-          downloadUrl: downloadPath 
+          downloadUrl: downloadPath,
         });
-      } catch (uploadError) {
-        console.error('Upload operation failed:', uploadError);
-        return res.status(500).json({ 
-          message: 'Upload failed', 
-          error: uploadError.message 
+      } catch (dbError) {
+        console.error('Database insert failed:', dbError);
+
+        // 8. Si falla el INSERT, intentamos borrar la imagen del contenedor para no dejarla huérfana
+        try {
+          await fetch(`http://${uploadResult.containerIP}/delete/${imageId}`, {
+            method: 'DELETE',
+          });
+          console.log(
+            `Cleanup: image ${imageId} deleted from container after DB failure.`
+          );
+        } catch (cleanupError) {
+          console.error(
+            `Cleanup failed: could not delete image ${imageId} from container:`,
+            cleanupError
+          );
+        }
+
+        return res.status(500).json({
+          message: 'Upload failed: database operation failed',
+          error: dbError.message,
         });
       }
-    } catch (error) {
-      console.error('Unexpected error in upload controller:', error);
-      return res.status(500).json({ message: 'Server error', details: error.message });
+    } catch (unexpectedError) {
+      console.error('Unexpected error in upload controller:', unexpectedError);
+
+      // Si ocurrió después de que la imagen ya llegó al contenedor, intentamos cleanup
+      if (uploadResult && uploadResult.containerIP) {
+        try {
+          await fetch(
+            `http://${uploadResult.containerIP}/delete/${uploadResult.image.id}`,
+            { method: 'DELETE' }
+          );
+          console.log(
+            `Cleanup (unexpected): image ${uploadResult.image.id} deleted from container.`
+          );
+        } catch (cleanupError) {
+          console.error(
+            `Cleanup (unexpected) failed for image ${uploadResult.image.id}:`,
+            cleanupError
+          );
+        }
+      }
+
+      return res.status(500).json({
+        message: 'Server error during upload',
+        details: unexpectedError.message,
+      });
     }
   });
 };
@@ -70,7 +123,7 @@ export const upload = async (req, res) => {
 export const images = async (req, res) => {
   try {
     // Query to fetch all images from the database
-    const [rows] = await db.query(
+    const [rows] = await readPool.query(
       'SELECT image_id, path, user_id FROM images ORDER BY creation_date DESC'
     );
     
@@ -87,53 +140,126 @@ export const images = async (req, res) => {
 };
 
 export const deleteImage = async (req, res) => {
+  let connection; // para la transacción
   try {
-
     const { imageId } = req.query;
-    
     if (!imageId) {
       return res.status(400).json({ message: 'Image ID is required' });
     }
-    
-    // Get the image info from the database
-    const [imageRows] = await db.query(
+
+    // 1. Obtengo info de la imagen (puede hacerse con readPool normal)
+    const [imageRows] = await readPool.query(
       'SELECT * FROM images WHERE image_id = ?',
       [imageId]
     );
-    
     if (imageRows.length === 0) {
       return res.status(404).json({ message: 'Image not found in database' });
     }
-    
     const image = imageRows[0];
-    
-    // Extract container IP from the path
-    // Assuming path is in format: http://CONTAINER_IP/image/IMAGE_ID
+
+    // 2. Extraigo el host/IP del contenedor a partir del path
     const containerUrl = new URL(image.path);
-    const containerIP = containerUrl.host;
-    
-    // Call the container's delete endpoint
-    const response = await fetch(`http://${containerIP}/delete/${imageId}`, {
+    const containerHost = containerUrl.host; // puede incluir puerto si lo tenía
+
+    // 3. Inicio transacción en BD (con writePool)
+    connection = await writePool.getConnection();
+    await connection.beginTransaction();
+
+    // 4. Elimino el registro en BD, pero aún no confirmo (COMMIT)
+    //    De esta forma, si falla la petición HTTP, haré ROLLBACK y la fila volverá a existir.
+    await connection.query('DELETE FROM images WHERE image_id = ?', [imageId]);
+
+    // 5. Intento llamar al endpoint DELETE del contenedor remoto
+    const containerResponse = await fetch(`http://${containerHost}/delete/${imageId}`, {
       method: 'DELETE',
     });
-    
-    if (!response.ok) {
-      const errorData = await response.json();
+    if (!containerResponse.ok) {
+      // Si el contenedor devuelve error, leo el body para más info y lanzo excepción
+      let errorData;
+      try {
+        errorData = await containerResponse.json();
+      } catch {
+        errorData = { error: 'Unknown error (no JSON)' };
+      }
       throw new Error(`Container returned error: ${errorData.error || 'Unknown error'}`);
     }
-    
-    // Remove the image record from the database
-    await db.query('DELETE FROM images WHERE image_id = ?', [imageId]);
-    
+
+    // 6. Si la petición al contenedor fue OK, confirmo transacción
+    await connection.commit();
+    connection.release();
+
     return res.status(200).json({ message: 'Image deleted successfully' });
-  } catch (error) {
-    console.error('Error deleting image:', error);
+
+  } catch (err) {
+    console.error('Error deleting image:', err);
+
+    // Si algo falló después de beginTransaction, hago rollback para dejar la BD consistente
+    if (connection) {
+      try {
+        await connection.rollback();
+      } catch (rollbackErr) {
+        console.error('Rollback error:', rollbackErr);
+      }
+      connection.release();
+    }
+
+    // Ya quedó la base de datos como antes y el contenedor NO borró (o no se llegó a confirmar)
     return res.status(500).json({
       message: 'Failed to delete image',
-      details: error.message
+      details: err.message,
     });
   }
 };
+
+export const getImageDescription = async (req, res) => {
+  cpUpload(req, res, async function (err) {
+    try {
+      // 1. Error in Multer middleware
+      if (err) {
+        console.error('Multer error:', err);
+        return res.status(400).json({ message: err.message });
+      }
+
+      // 2. Validar que venga archivo
+      if (!req.files || !req.files.image || !req.files.image[0]) {
+        return res.status(400).json({ message: 'Please provide a file' });
+      }
+
+      const file = req.files.image[0];
+
+      // 3. Verificar buffer
+      if (!file.buffer || file.buffer.length === 0) {
+        return res.status(400).json({ message: 'Empty file provided' });
+      }
+
+      // Create form data for the API request
+      const formData = new FormData();
+      const blob = new Blob([file.buffer], { type: file.mimetype });
+      formData.append('image', blob, file.originalname);
+
+      // Send request to description-ia API
+      const response = await fetch(description_ia_url + "/upload", {
+        method: 'POST',
+        body: formData
+      });
+
+      if (!response.ok) {
+        throw new Error(`API responded with status: ${response.status}`);
+      }
+
+      const data = await response.json();
+      res.json(data);
+
+    } catch (error) {
+      console.error('Error getting image description:', error);
+      res.status(500).json({ 
+        message: 'Failed to get image description',
+        details: error.message 
+      });
+    }
+  });
+};
+
 
 // export const getImagesById = async (req, res) => {
 //   try {
