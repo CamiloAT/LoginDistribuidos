@@ -2,6 +2,7 @@ import express from 'express';
 import cors from 'cors';
 import authRoutes from './routes/authRoutes.js';
 import storageRoutes from './routes/storageRoutes.js';
+import timeRoutes from './routes/timeRoutes.js';
 
 const app = express();
 
@@ -15,5 +16,6 @@ app.use(express.json({ limit: '10mb' }));
 app.use(express.urlencoded({ extended: true, limit: '10mb' }));
 
 app.use('/api/auth', authRoutes);
+app.use('/api/time', timeRoutes);
 
 export default app;

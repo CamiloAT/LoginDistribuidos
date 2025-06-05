@@ -9,6 +9,7 @@ import {
   Grid3X3
 } from 'lucide-react';
 import { getAllImages } from '../services/contService';
+import { getCurrentTime } from '../services/dateTimeService';
 
 import ImageCard from '../components/ImageCard';
 
@@ -16,6 +17,7 @@ export default function Home() {
   const { logout, getEmail } = useAuth();
   const [user, setUser] = useState(null);
   const [images, setImages] = useState([]);
+  const [currentDate, setCurrentDate] = useState('');
   const navigate = useNavigate();
 
   useEffect(() => {
@@ -36,6 +38,19 @@ export default function Home() {
     fetchImages();
 
   }, [])
+
+  useEffect(() => {
+    const interval = setInterval(async () => {
+      try {
+        const response = await getCurrentTime(); // Llama al método para obtener la hora actual
+        setCurrentDate(response.currentTime); // Actualiza el estado con la fecha obtenida
+      } catch (err) {
+        console.error('Error obteniendo la hora actual:', err);
+      }
+    }, 1000); // Actualiza cada segundo
+  
+    return () => clearInterval(interval); // Limpia el intervalo al desmontar el componente
+  }, []);
 
   return (
     <div className="min-h-screen bg-gradient-to-br from-slate-950 via-blue-950 to-indigo-950">
@@ -116,10 +131,23 @@ export default function Home() {
                 />
               </div>
 
-              <input
-                type="date"
-                className="px-4 py-3 rounded-2xl bg-white/10 backdrop-blur-md border border-white/20 text-white focus:outline-none focus:ring-2 focus:ring-blue-400/50 focus:border-transparent transition-all duration-300"
-              />
+              <div className="flex items-center space-x-2 px-4 py-3 rounded-2xl bg-white/10 backdrop-blur-md border border-white/20 text-white">
+                <svg
+                  xmlns="http://www.w3.org/2000/svg"
+                  className="h-5 w-5 text-white/60"
+                  fill="none"
+                  viewBox="0 0 24 24"
+                  stroke="currentColor"
+                  strokeWidth={2}
+                >
+                  <path
+                    strokeLinecap="round"
+                    strokeLinejoin="round"
+                    d="M12 8v4l3 3m6-3a9 9 0 11-18 0 9 9 0 0118 0z"
+                  />
+                </svg>
+                <span>{currentDate ? new Date(currentDate).toLocaleString() : 'Cargando fecha...'}</span>
+              </div>
             </div>
           </div>
         </header>
