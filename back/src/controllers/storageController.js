@@ -3,7 +3,7 @@ import { uploadImageToContainer } from '../services/storageService.js';
 import { readPool, writePool } from '../config/db.js';
 import { upload as uploadMiddleware } from '../config/multerConfig.js';
 
-import { description_ia_url } from '../config/index.js';
+import { description_ia_url, ipAddress } from '../config/index.js';
 
 const cpUpload = uploadMiddleware.fields([
   { name: 'id_user', maxCount: 1 },
@@ -52,10 +52,14 @@ export const upload = async (req, res) => {
         });
       }
 
+      console.log("RESULTADO", uploadResult)
+
       // 6. Construir la ruta de descarga
       //    uploadResult.containerIP debería venir de uploadImageToContainer
       //    uploadResult.image.id = imageId (usamos el mismo ID)
-      const downloadPath = `http://${uploadResult.containerIP}/image/${imageId}`;
+      const downloadPath = `http://${ipAddress}:${uploadResult.image.portByContainer}/image/${imageId}`;
+
+      console.log("sunga", downloadPath)
 
       // 7. Intentar insertar registro en BD
       try {
@@ -73,7 +77,7 @@ export const upload = async (req, res) => {
 
         // 8. Si falla el INSERT, intentamos borrar la imagen del contenedor para no dejarla huérfana
         try {
-          await fetch(`http://${uploadResult.containerIP}/delete/${imageId}`, {
+          await fetch(`http://${ipAddress}:${uploadResult.image.portByContainer}/delete/${imageId}`, {
             method: 'DELETE',
           });
           console.log(
@@ -95,10 +99,10 @@ export const upload = async (req, res) => {
       console.error('Unexpected error in upload controller:', unexpectedError);
 
       // Si ocurrió después de que la imagen ya llegó al contenedor, intentamos cleanup
-      if (uploadResult && uploadResult.containerIP) {
+      if (uploadResult && uploadResult.image.portByContainer) {
         try {
           await fetch(
-            `http://${uploadResult.containerIP}/delete/${uploadResult.image.id}`,
+            `http://${ipAddress}:${uploadResult.image.portByContainer}/delete/${uploadResult.image.id}`,
             { method: 'DELETE' }
           );
           console.log(

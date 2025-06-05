@@ -1,4 +1,5 @@
 export const port = process.env.PORT || 3000;
+export const ipAddress = process.env.IP_ADDRESS || 'localhost';
 
 export const uri_db = process.env.MYSQL_URI || 'mysql://user:password@localhost:3306/dbname';
 
