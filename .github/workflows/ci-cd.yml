@@ -31,7 +31,7 @@ jobs:
         
       - name: Install dependencies in 'back'
         working-directory: ./back
-        run: npm ci
+        run: npm install
 
       - name: Run tests in 'back'
         working-directory: ./back
@@ -47,7 +47,7 @@ jobs:
         
       - name: Install dependencies in 'gallery-images'
         working-directory: ./gallery-images
-        run: npm ci
+        run: npm install
 
       - name: Run tests in 'gallery-images'
         working-directory: ./gallery-images
@@ -89,7 +89,7 @@ jobs:
             ${{ runner.os }}-node-
       - name: Install dependencies for 'front'
         working-directory: ./front
-        run: npm ci
+        run: npm install
       - name: Run build for 'front'
         working-directory: ./front
         run: npm run build # Este comando creará la carpeta 'dist' (o 'build') con los estáticos
