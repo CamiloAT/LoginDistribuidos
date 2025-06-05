@@ -1,0 +1,45 @@
+<!DOCTYPE html>
+<html lang="es">
+
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Subir Imagen y AI Desc</title>
+    <link rel="stylesheet" href="style.css">
+</head>
+
+<body>
+    <div class="container">
+        <h1>Sube una Imagen para obtener una Descripción de la IA</h1>
+
+        <div class="upload-container">
+            <label for="imageInput" class="custom-file-upload">
+                <span class="upload-icon">📁</span>
+                <span>Seleccionar imagen</span>
+            </label>
+            <input type="file" id="imageInput" accept="image/*">
+            <button id="uploadButton">Generar Descripción</button>
+        </div>
+
+        <div id="imagePreviewContainer">
+            <img id="imagePreview" src="#" alt="Previsualización de la imagen">
+        </div>
+
+        <p id="status">Esperando archivo...</p>
+
+        <div class="loader-container">
+            <div class="loader">
+                <div class="circle"></div>
+                <div class="circle"></div>
+                <div class="circle"></div>
+                <div class="circle"></div>
+            </div>
+        </div>
+
+        <div id="result"></div>
+    </div>
+
+    <script src="script.js"></script>
+</body>
+
+</html>
