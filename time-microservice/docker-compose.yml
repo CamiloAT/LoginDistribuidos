@@ -1,0 +1,27 @@
+version: '3.8'
+services:
+  time-microservice:
+    build:
+      context: . # El contexto de construcción es la carpeta actual (time-microservice)
+      dockerfile: Dockerfile # El Dockerfile está en la misma carpeta
+    container_name: time-microservice-container # Nombre opcional para el contenedor
+    ports:
+      - "50051:50051" # Mapea el puerto 50051 del host al puerto 50051 del contenedor
+    volumes:
+      # Monta el código local para desarrollo (cambios en tiempo real)
+      - ./src:/app/src
+      - ./protos:/app/protos # Asegura que el .proto esté sincronizado
+      - ./package.json:/app/package.json # Para npm install y package.json
+      - ./package-lock.json:/app/package-lock.json # Para npm install y package-lock.json
+      - /app/node_modules # Evita que los node_modules locales sobrescriban los del contenedor
+    restart: unless-stopped # Reinicia el contenedor si se detiene, a menos que se detenga manualmente
+    environment:
+      # Si necesitas variables de entorno específicas para este microservicio
+      NODE_ENV: development
+    networks:
+      - gallery-network
+    # ===============================================================
+
+networks:
+  gallery-network: # Define la red externa que ya existe o que crearás manualmente
+    external: true

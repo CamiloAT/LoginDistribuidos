@@ -219,12 +219,14 @@ export const getImageDescription = async (req, res) => {
   cpUpload(req, res, async function (err) {
     try {
       // 1. Error in Multer middleware
+      console.log('entrando al paso 1')
       if (err) {
         console.error('Multer error:', err);
         return res.status(400).json({ message: err.message });
       }
 
       // 2. Validar que venga archivo
+      console.log('entrando al paso 2')
       if (!req.files || !req.files.image || !req.files.image[0]) {
         return res.status(400).json({ message: 'Please provide a file' });
       }
@@ -232,6 +234,7 @@ export const getImageDescription = async (req, res) => {
       const file = req.files.image[0];
 
       // 3. Verificar buffer
+      console.log('entrando al paso 3')
       if (!file.buffer || file.buffer.length === 0) {
         return res.status(400).json({ message: 'Empty file provided' });
       }
