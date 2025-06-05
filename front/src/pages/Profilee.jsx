@@ -1,4 +1,4 @@
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useCallback } from 'react';
 import { useNavigate } from 'react-router-dom';
 import useAuth from '../hooks/useAuth';
 import {
@@ -12,13 +12,14 @@ import { jwtDecode } from "jwt-decode";
 import ImageCard from '../components/ImageCard';
 
 export default function Profile() {
-  const { logout, getUser } = useAuth();
+  const { logout, getEmail } = useAuth();
   const [user, setUser] = useState(null);
   const [userImages, setUserImages] = useState([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState(null);
   const navigate = useNavigate();
   const { token } = useAuth();
+  const stableGetEmail = useCallback(getEmail, []);
 
   // Get user ID from token
   const decoded = token ? jwtDecode(token) : { userId: null };
@@ -30,9 +31,14 @@ export default function Profile() {
 
   // Fetch user data
   useEffect(() => {
-    const userData = getUser ? getUser() : { name: 'User' };
-    setUser(userData);
-  }, [getUser]);
+    const userData = stableGetEmail ? stableGetEmail() : { name: 'User' };
+
+    // Extraer el nickname del correo
+    const nickname = userData 
+    ? userData.split('@')[0].charAt(0).toUpperCase() + userData.split('@')[0].slice(1) 
+    : 'User';
+    setUser({ ...userData, nickname }); // Agregar el nickname al objeto user
+  }, [stableGetEmail]);
 
   // Fetch user's images
   useEffect(() => {
@@ -129,7 +135,7 @@ export default function Profile() {
           {/* User Info Card */}
           <div className="backdrop-blur-xl bg-white/5 border border-white/10 rounded-2xl p-6">
             <h2 className="text-2xl font-semibold text-white mb-2">
-              Bienvenido, <span className="bg-gradient-to-r from-blue-400 to-purple-400 bg-clip-text text-transparent">{user?.name || 'User'}</span>
+              Bienvenido, <span className="bg-gradient-to-r from-blue-400 to-purple-400 bg-clip-text text-transparent">{user?.nickname || 'User'}</span>
             </h2>
             <p className="text-white/60">Gestiona tu perfil y visualiza tus imágenes</p>
           </div>
