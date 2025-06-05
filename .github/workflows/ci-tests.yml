@@ -5,10 +5,10 @@ name: CI - Run Tests
 on:
   push:
     branches:
-      - main # Dispara el workflow cuando se haga push a la rama 'main'
+      - production # Dispara el workflow cuando se haga push a la rama 'production'
   pull_request:
     branches:
-      - main
+      - production
 
 # Definición de los jobs
 jobs:
