@@ -3,6 +3,7 @@ import { useNavigate } from 'react-router-dom';
 import useAuth from '../hooks/useAuth';
 import { LogOut, Upload, Edit3 } from 'lucide-react';
 import { uploadImage } from '../services/contService';
+import { getImageDescription } from '../services/contService';
 import { jwtDecode } from "jwt-decode";
 
 export default function UploadImage() {
@@ -10,10 +11,11 @@ export default function UploadImage() {
   const { logout, getUser } = useAuth();
   const [user, setUser] = useState(null);
   const navigate = useNavigate();
-
+  const [description, setDescription] = useState('');
   const [file, setFile] = useState(null);
   const [previewUrl, setPreviewUrl] = useState('');
   const fileInputRef = useRef(null);
+  const [isLoading, setIsLoading] = useState(false); // Estado para controlar el loader
 
   useEffect(() => {
     const userData = getUser ? getUser() : { name: 'User' };
@@ -40,6 +42,7 @@ export default function UploadImage() {
       const response = await uploadImage(file, userId);
       alert('Imagen subida correctamente');
       console.log('Respuesta del backend:', response);
+      navigate('/home'); 
     } catch (error) {
       console.error('Error al subir la imagen:', error);
       alert('Error al subir la imagen');
@@ -161,11 +164,42 @@ export default function UploadImage() {
                     className="w-full px-4 py-3 rounded-xl bg-white/10 border border-white/20 text-white placeholder-white/50 focus:outline-none focus:ring-2 focus:ring-blue-400/50 focus:border-transparent transition-all duration-300"
                   />
 
+                  <div className="flex items-center space-x-4">
                   <textarea
                     placeholder="Descripción detallada"
                     rows={4}
-                    className="w-full px-4 py-3 rounded-xl bg-white/10 border border-white/20 text-white placeholder-white/50 focus:outline-none focus:ring-2 focus:ring-blue-400/50 focus:border-transparent transition-all duration-300"
+                    value={isLoading ? 'Generando descripción...' : description} // Muestra el loader o la descripción
+                    onChange={(e) => setDescription(e.target.value)} // Permite editar la descripción
+                    className={`w-full px-4 py-3 rounded-xl bg-white/10 border border-white/20 text-white placeholder-white/50 focus:outline-none focus:ring-2 focus:ring-blue-400/50 focus:border-transparent transition-all duration-300 ${
+                      isLoading ? 'animate-pulse' : ''
+                    }`} // Agrega animación mientras se genera
+                    disabled={isLoading} // Desactiva el campo mientras se genera la descripción
                   />
+                    <button
+                      onClick={async () => {
+                        if (!file) {
+                          alert('No has seleccionado ningún archivo.');
+                          return;
+                        }
+
+                        setIsLoading(true); // Activa el loader
+                        try {
+                          const response = await getImageDescription(file); // Llama al servicio
+                          setDescription(response.description); // Actualiza la descripción
+                          alert('Descripción generada correctamente');
+                        } catch (error) {
+                          console.error('Error generando descripción con IA:', error);
+                          alert('Error generando descripción con IA');
+                        } finally {
+                          setIsLoading(false); // Desactiva el loader
+                        }
+                      }}
+                      className="px-4 py-3 rounded-xl bg-gradient-to-r from-blue-500 to-indigo-500 text-white font-medium hover:from-blue-600 hover:to-indigo-600 transition-all duration-300"
+                      disabled={isLoading} // Desactiva el botón mientras se genera la descripción
+                    >
+                      {isLoading ? 'Generando...' : 'Generar con IA'}
+                    </button>
+                  </div>
 
                   <input
                     type="text"
