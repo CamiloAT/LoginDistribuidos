@@ -1,4 +1,4 @@
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useCallback } from 'react';
 import { useNavigate } from 'react-router-dom';
 import useAuth from '../hooks/useAuth';
 import {
@@ -19,11 +19,17 @@ export default function Home() {
   const [images, setImages] = useState([]);
   const [currentDate, setCurrentDate] = useState('');
   const navigate = useNavigate();
+  const stableGetEmail = useCallback(getEmail, []);
 
   useEffect(() => {
-    const userData = getEmail ? getEmail() : { name: 'User' };
-    setUser(userData);
-  }, [getEmail]);
+    const userData = stableGetEmail ? stableGetEmail() : { name: 'User' };
+
+    // Extraer el nickname del correo
+    const nickname = userData 
+    ? userData.split('@')[0].charAt(0).toUpperCase() + userData.split('@')[0].slice(1) 
+    : 'User';
+    setUser({ ...userData, nickname }); // Agregar el nickname al objeto user
+  }, [stableGetEmail]);
 
   useEffect(() => {
     const fetchImages = async () => {
@@ -156,7 +162,7 @@ export default function Home() {
         <main className="p-6">
           <div className="mb-8">
             <h2 className="text-2xl font-semibold text-white mb-2">
-              Bienvenido de vuelta, <span className="bg-gradient-to-r from-blue-400 to-purple-400 bg-clip-text text-transparent">{user?.username || 'User'}</span>
+            Bienvenido de vuelta, <span className="bg-gradient-to-r from-blue-400 to-purple-400 bg-clip-text text-transparent">{user?.nickname || 'User'}</span>
             </h2>
             <p className="text-white/60">Explora tu colección de imágenes increíbles</p>
           </div>
