@@ -149,6 +149,6 @@ jobs:
             # sudo systemctl reload nginx # Descomentar si Nginx está instalado directamente en el servidor host
 
             echo "Proceso de despliegue en el servidor completado."
-EOF
+            EOF
       - name: Deployment Completed
         run: echo "🚀 Despliegue completado en el servidor remoto ${{ secrets.SERVER_HOST }}!"

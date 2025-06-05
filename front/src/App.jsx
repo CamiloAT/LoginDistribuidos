@@ -13,6 +13,8 @@ import UploadImage from './pages/UploadImage';
 const App = () => {
   const { isAuthenticated, loading, getRoles } = useAuth();
 
+  console.log("Bienvenido:", isAuthenticated);
+
   if (loading) return <p>Loading...</p>;
 
   const isAdmin = getRoles().some((role) => (role.name || role) === "admin");
@@ -32,16 +34,16 @@ const App = () => {
         element={isAuthenticated ? <Home /> : <Navigate to="/login" />}
       />
 
-  
+
       <Route
         path="/profile"
         element={isAuthenticated ? <Profile /> : <Navigate to="/login" />}
       />
-      
+
       <Route
         path="/uploadImage"
-       element={isAuthenticated ? <UploadImage /> : <Navigate to="/login" />}
-/>
+        element={isAuthenticated ? <UploadImage /> : <Navigate to="/login" />}
+      />
 
       <Route
         path="/admin"
