@@ -31,7 +31,7 @@ jobs:
         
       - name: Install dependencies in 'back'
         working-directory: ./back
-        run: npm install
+        run: npm ci
 
       - name: Run tests in 'back'
         working-directory: ./back
@@ -47,7 +47,7 @@ jobs:
         
       - name: Install dependencies in 'gallery-images'
         working-directory: ./gallery-images
-        run: npm install
+        run: npm ci
 
       - name: Run tests in 'gallery-images'
         working-directory: ./gallery-images
@@ -77,9 +77,9 @@ jobs:
           chmod 600 ~/.ssh/known_hosts
 
       - name: Build React Frontend
-        uses: actions/setup-node@v4 # Necesitamos Node.js para construir React
+        uses: actions/setup-node@v4
         with:
-          node-version: '18' # Asegúrate de que esta versión sea compatible con tu proyecto React
+          node-version: '18'
       - name: Cache Node.js modules for 'front'
         uses: actions/cache@v4
         with:
@@ -89,7 +89,7 @@ jobs:
             ${{ runner.os }}-node-
       - name: Install dependencies for 'front'
         working-directory: ./front
-        run: npm install
+        run: npm ci
       - name: Run build for 'front'
         working-directory: ./front
         run: npm run build # Este comando creará la carpeta 'dist' (o 'build') con los estáticos
@@ -105,50 +105,36 @@ jobs:
           ssh ${{ secrets.SERVER_USER }}@${{ secrets.SERVER_HOST }} "mkdir -p $REMOTE_DIR"
           
           # Sincronizar el contenido del proyecto (excluyendo .git, node_modules, .github, y la carpeta 'front')
-          # ¡Importante!: La carpeta 'front' solo se copiará después de la construcción
           echo "Copiando archivos del backend y microservicios al servidor..."
           rsync -avz --delete --exclude '.git/' --exclude 'node_modules/' --exclude '.github/' --exclude 'front/' \
             ./ ${{ secrets.SERVER_USER }}@${{ secrets.SERVER_HOST }}:$REMOTE_DIR/
 
           echo "Copiando la carpeta de build de frontend al servidor..."
           # Copiar SÓLO la carpeta de build del frontend (ej. 'dist')
-          rsync -avz "$FRONT_BUILD_DIR"/ ${{ secrets.SERVER_USER }}@${{ secrets.SERVER_HOST }}:$REMOTE_DIR/front_build/ # Copiar a un directorio específico en el servidor
+          rsync -avz "$FRONT_BUILD_DIR"/ ${{ secrets.SERVER_USER }}@${{ secrets.SERVER_HOST }}:$REMOTE_DIR/front_build/
 
-          echo "Configurando y levantando servicios Docker en el servidor..."
+          echo "Levantando servicios Docker en el servidor..."
           # Ejecutar los comandos en el servidor remoto
+          # NOTA: La línea 'EOF' al final de este bloque DEBE estar indentada
+          # al mismo nivel que el inicio del comando 'ssh' de esta línea.
           ssh ${{ secrets.SERVER_USER }}@${{ secrets.SERVER_HOST }} << 'EOF'
             cd "$REMOTE_DIR"
             
             # Dar permisos de ejecución al script start-services.sh
-            chmod +x start-services.sh
+            chmod +x ./start-services.sh
             
             # Ejecutar start-services.sh y responder 'y' para --build
             echo "y" | ./start-services.sh
             
-            # --- Configuración para servir el frontend ---
-            # Aquí la lógica cambia drásticamente. Necesitas un servidor web
-            # (como Nginx) para servir los archivos estáticos de React.
-            # No se ejecuta 'npm run start' para el frontend.
-            # En su lugar, debes asegurarte de que tu configuración de Nginx (o similar)
-            # en el servidor apunte al directorio donde copiaste el build de React.
-
-            # Ejemplo (si Nginx ya está configurado para servir '/var/www/html' o similar):
-            # Asumiendo que tu Nginx está configurado para servir /var/www/html/app-gallery-front
-            # Y que tienes un proxy_pass para el backend
             echo "Actualizando archivos estáticos del frontend..."
-            # Elimina el contenido antiguo y mueve los nuevos archivos de build
-            # Asegúrate que el usuario deploy tenga permisos para esto
             rm -rf /var/www/html/app-gallery-front/* 2>/dev/null || true
             mkdir -p /var/www/html/app-gallery-front
             mv "$REMOTE_DIR"/front_build/* /var/www/html/app-gallery-front/
             
-            # Recargar Nginx si es necesario para aplicar cualquier cambio de configuración
-            # (Esto asume que ya tienes Nginx instalado y configurado para tu frontend)
-            # Si tu Nginx ya está en Docker Compose, el despliegue de Nginx sería parte de start-services.sh
-            # y solo necesitarías asegurarte de que los archivos se copien al volumen correcto de Nginx.
             # sudo systemctl reload nginx # Descomentar si Nginx está instalado directamente en el servidor host
 
             echo "Proceso de despliegue en el servidor completado."
-            EOF
+          EOF # ¡ESTA LÍNEA ES LA CLAVE! Indentada con 10 espacios (o al mismo nivel que 'ssh')
+
       - name: Deployment Completed
         run: echo "🚀 Despliegue completado en el servidor remoto ${{ secrets.SERVER_HOST }}!"
