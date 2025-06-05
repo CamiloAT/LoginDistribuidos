@@ -13,9 +13,11 @@ services:
       - JWT_SECRET=${JWT_SECRET}
       - EMAIL_USER=${EMAIL_USER}
       - EMAIL_PASS=${EMAIL_PASS}
+      - TIME_MICROSERVICE_HOST=time-microservice:50051
     volumes:
       - .:/app
       - /app/node_modules
+      - ./../time-microservice/protos:/app/time-microservice/protos
     restart: unless-stopped
     networks:
       - gallery-network
