@@ -1,0 +1,72 @@
+# Nombre del workflow, aparecerá en la interfaz de GitHub Actions
+name: CI - Run Tests
+
+# Eventos que disparan este workflow
+on:
+  push:
+    branches:
+      - main # Dispara el workflow cuando se haga push a la rama 'main'
+  pull_request:
+    branches:
+      - main
+
+# Definición de los jobs
+jobs:
+  # Job para ejecutar los tests del backend
+  backend-tests:
+    name: Backend Tests
+    runs-on: ubuntu-latest # El runner que ejecutará este job (máquina virtual Ubuntu)
+
+    steps:
+      # Step 1: Clonar el repositorio
+      - name: Checkout code
+        uses: actions/checkout@v4 # Acción para clonar el repositorio en el runner
+
+      # Step 2: Configurar Node.js en la carpeta 'back'
+      - name: Setup Node.js for backend
+        uses: actions/setup-node@v4
+        with:
+          node-version: '20' # Especifica la versión de Node.js que usas para el backend
+          cache: 'npm' # Habilitar caché de npm para instalaciones más rápidas
+          cache-dependency-path: 'back/package-lock.json' # Ruta al archivo lock para el caché
+
+      # Step 3: Instalar dependencias del backend
+      - name: Install backend dependencies
+        run: npm install
+        working-directory: ./back # Ejecutar este comando dentro de la carpeta 'back'
+
+      # Step 4: Ejecutar los tests del backend
+      - name: Run backend tests
+        run: npm test # O npm run test, si así lo tienes configurado en package.json
+        working-directory: ./back # Ejecutar este comando dentro de la carpeta 'back'
+
+  # Job para ejecutar los tests de gallery-images
+  gallery-images-tests:
+    name: Gallery Images Tests
+    runs-on: ubuntu-latest # El runner que ejecutará este job
+
+    # Este job dependerá de que el job 'backend-tests' haya finalizado exitosamente
+    needs: backend-tests
+
+    steps:
+      # Step 1: Clonar el repositorio
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      # Step 2: Configurar Node.js en la carpeta 'gallery-images'
+      - name: Setup Node.js for gallery-images
+        uses: actions/setup-node@v4
+        with:
+          node-version: '20' # Especifica la versión de Node.js que usas para gallery-images
+          cache: 'npm'
+          cache-dependency-path: 'gallery-images/package-lock.json'
+
+      # Step 3: Instalar dependencias de gallery-images
+      - name: Install gallery-images dependencies
+        run: npm install
+        working-directory: ./gallery-images # Ejecutar este comando dentro de la carpeta 'gallery-images'
+
+      # Step 4: Ejecutar los tests de gallery-images
+      - name: Run gallery-images tests
+        run: npm test # O npm run test
+        working-directory: ./gallery-images # Ejecutar este comando dentro de la carpeta 'gallery-images'
