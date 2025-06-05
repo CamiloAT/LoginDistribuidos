@@ -60,6 +60,23 @@ export const getUserImages = async (idUser) => {
   }
 };
 
+export const getImageDescription = async (file) => {
+  try {
+    const formData = new FormData();
+    formData.append('image', file); // Adjunta el archivo de imagen
+
+    const response = await api('storage/get-image-description', {
+      method: 'POST',
+      body: formData,
+    });
+
+    return response;
+  } catch (error) {
+    console.error('Error obteniendo descripción de IA:', error);
+    throw error;
+  }
+};
+
 export const deleteImage = async (idImage) => {
 
   console.log("id: " + idImage)
