@@ -5,7 +5,9 @@
   "main": "src/index.js",
   "type": "module",
   "scripts": {
-    "test": "echo \"Error: no test specified\" && exit 1",
+    "test": "vitest",
+    "test:ui": "vitest --ui",
+    "test:coverage": "vitest --coverage",
     "start": "node --env-file .env --watch src/index.js",
     "dev": "nodemon --env-file .env src/index.js"
   },
@@ -26,6 +28,9 @@
     "uuid": "^11.1.0"
   },
   "devDependencies": {
-    "nodemon": "^3.1.10"
+    "@vitest/ui": "^3.2.1",
+    "jsdom": "^26.1.0",
+    "nodemon": "^3.1.10",
+    "vitest": "^3.2.1"
   }
 }
