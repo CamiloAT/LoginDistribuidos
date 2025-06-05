@@ -1,37 +1,85 @@
+version: '3.8'
+
 services:
+  nginx-storage-lb:
+    image: nginx:alpine
+    container_name: nginx-storage-lb
+    ports:
+      - "8080:80"
+    volumes:
+      - ./nginx-storage.conf:/etc/nginx/nginx.conf:ro
+    depends_on:
+      - storage1
+      - storage2
+      - storage3
+      - storage4
+    restart: unless-stopped
+    networks:
+      - gallery-network
+
   storage1:
     build: .
     container_name: storage1
     ports:
-      - "4001:3000"
+      - "8081:3000"
+    environment:
+      - HOSTNAME=storage1
+      - PORT_CONTAINER=8081
     volumes:
       - storage1_data:/app/images
+    restart: unless-stopped
+    networks:
+      - gallery-network
 
   storage2:
     build: .
     container_name: storage2
     ports:
-      - "4002:3000"
+      - "8082:3000"
+    environment:
+      - HOSTNAME=storage2
+      - PORT_CONTAINER=8082
     volumes:
       - storage2_data:/app/images
+    restart: unless-stopped
+    networks:
+      - gallery-network
 
   storage3:
     build: .
     container_name: storage3
     ports:
-      - "4003:3000"
+      - "8083:3000"
+    environment:
+      - HOSTNAME=storage3
+      - PORT_CONTAINER=8083
     volumes:
       - storage3_data:/app/images
+    restart: unless-stopped
+    networks:
+      - gallery-network
+
   storage4:
     build: .
     container_name: storage4
     ports:
-      - "4004:3000"
+      - "8084:3000"
+    environment:
+      - HOSTNAME=storage4
+      - PORT_CONTAINER=8084
     volumes:
       - storage4_data:/app/images
+    restart: unless-stopped
+    networks:
+      - gallery-network
 
 volumes:
   storage1_data:
   storage2_data:
   storage3_data:
   storage4_data:
+
+
+networks:
+  gallery-network:
+    external: true
