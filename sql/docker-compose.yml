@@ -94,57 +94,6 @@ services:
       - gallery-network
     restart: unless-stopped
 
-  # Monitoreo de salud del cluster
-  prometheus:
-    image: prom/prometheus:latest
-    container_name: prometheus
-    ports:
-      - "9090:9090"
-    volumes:
-      - ./prometheus.yml:/etc/prometheus/prometheus.yml
-      - prometheus-data:/prometheus
-    networks:
-      - gallery-network
-    restart: unless-stopped
-
-  grafana:
-    image: grafana/grafana:latest
-    container_name: grafana
-    ports:
-      - "3001:3000" # Accede a Grafana en localhost:3001
-    environment:
-      - GF_SECURITY_ADMIN_PASSWORD=admin123 # ¡Cambia esto para producción!
-      - GF_USERS_ALLOW_SIGN_UP=false
-    volumes:
-      - grafana-data:/var/lib/grafana
-    depends_on:
-      - prometheus
-    networks:
-      - gallery-network
-    restart: unless-stopped
-  # db-manager (opcional, para scripts de gestión manual o automática)
-  # Este servicio es útil si necesitas ejecutar scripts de Docker o MySQL
-  # desde un contenedor que tenga acceso a Docker.
-  # Descomenta si lo necesitas, y asegúrate de tener los scripts adecuados.
-  # db-manager:
-  #   image: debian:bullseye-slim
-  #   container_name: db-manager
-  #   volumes:
-  #     - /var/run/docker.sock:/var/run/docker.sock # Permite interactuar con Docker desde dentro
-  #     - ./:/scripts # Monta el directorio actual donde estarán tus scripts (e.g., add-node.sh, failover-script.sh)
-  #   command: >
-  #     bash -c "apt-get update &&
-  #              apt-get install -y docker.io mariadb-client net-tools procps curl sed &&
-  #              chmod +x /scripts/*.sh && # Asegura que tus scripts sean ejecutables
-  #              tail -f /dev/null" # Mantiene el contenedor en ejecución
-  #   networks:
-  #     - gallery-network
-  #   depends_on:
-  #     - mariadb-master
-  #     - mariadb-slave1
-  #     - mariadb-slave2 # Asegura que las DBs estén listas antes de que db-manager intente algo
-  #   restart: on-failure
-
 networks:
   gallery-network:
     external: true
@@ -153,5 +102,3 @@ volumes:
   mariadb-master-data:
   mariadb-slave1-data:
   mariadb-slave2-data:
-  prometheus-data:
-  grafana-data:
