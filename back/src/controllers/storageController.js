@@ -156,6 +156,7 @@ export const deleteImage = async (req, res) => {
       'SELECT * FROM images WHERE image_id = ?',
       [imageId]
     );
+
     if (imageRows.length === 0) {
       return res.status(404).json({ message: 'Image not found in database' });
     }
@@ -171,7 +172,9 @@ export const deleteImage = async (req, res) => {
 
     // 4. Elimino el registro en BD, pero aún no confirmo (COMMIT)
     //    De esta forma, si falla la petición HTTP, haré ROLLBACK y la fila volverá a existir.
-    await connection.query('DELETE FROM images WHERE image_id = ?', [imageId]);
+    const responseDelete = await connection.query('DELETE FROM images WHERE image_id = ?', [imageId]);
+
+    console.log("HAJSKDKKD",responseDelete)
 
     // 5. Intento llamar al endpoint DELETE del contenedor remoto
     const containerResponse = await fetch(`http://${containerHost}/delete/${imageId}`, {
