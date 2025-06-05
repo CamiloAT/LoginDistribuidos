@@ -10,6 +10,6 @@ router.post('/reset-password/:token', resetPassword);
 router.get('/roles', listRoles)
 router.get('/role-user/:id', getUserRoles)
 router.post('/change-role-user', updateUserRoles)
-router.get('/user/:email', getUserData)
+router.get('/user/email', getUserData)
 
 export default router;

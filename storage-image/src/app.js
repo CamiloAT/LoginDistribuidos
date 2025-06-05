@@ -4,6 +4,7 @@ import fs from 'fs';
 import path from 'path';
 
 import upload, { SPACE_STORAGE as spaceStorage } from './config/storage.js';
+import { hostname, portContainer } from './config/index.js';
 
 const app = express();
 
@@ -31,15 +32,15 @@ app.get('/get-available-storage', (req, res) => {
         // Calculate used storage
         let usedStorage = 0;
         const files = fs.readdirSync(uploadsDir);
-        
+
         files.forEach(file => {
             const filePath = path.join(uploadsDir, file);
             const stats = fs.statSync(filePath);
             usedStorage += stats.size;
         });
-        
+
         const availableStorage = spaceStorage - usedStorage;
-        
+
         res.json({
             totalStorage: spaceStorage,
             usedStorage,
@@ -61,30 +62,32 @@ app.post('/upload', (req, res) => {
         if (err) {
             return res.status(400).json({ error: err.message });
         }
-        
+
+        console.log("haoooodasdñlj", hostname)
+
         // Check if image file was provided
         if (!req.files || !req.files.image || !req.files.image[0]) {
             return res.status(400).json({ error: 'No image file provided' });
         }
-        
+
         // Get the image file from memory
         const imageFile = req.files.image[0];
-        
+
         // Generate ID for the image
         const idImage = req.body.id_image || Date.now() + '-' + Math.round(Math.random() * 1E9);
-        
+
         // Determine file extension
         const extension = imageFile.originalname.split('.').pop();
         const fileName = `${idImage}.${extension}`;
         const filePath = path.join(uploadsDir, fileName);
-        
+
         // Write the file to disk
         fs.writeFile(filePath, imageFile.buffer, (err) => {
             if (err) {
                 console.error('Error saving file:', err);
                 return res.status(500).json({ error: 'Error saving file' });
             }
-            
+
             res.status(201).json({
                 message: 'Image uploaded successfully',
                 image: {
@@ -93,7 +96,9 @@ app.post('/upload', (req, res) => {
                     originalName: imageFile.originalname,
                     mimetype: imageFile.mimetype,
                     size: imageFile.size,
-                    path: filePath
+                    path: filePath,
+                    servedByContainer: hostname,
+                    portByContainer: portContainer,
                 }
             });
         });
@@ -109,7 +114,7 @@ app.get('/images', (req, res) => {
             const stats = fs.statSync(filePath);
             const extension = path.extname(file);
             const id = path.basename(file, extension);
-            
+
             return {
                 id,
                 filename: file,
@@ -117,7 +122,7 @@ app.get('/images', (req, res) => {
                 uploadDate: stats.mtime
             };
         });
-        
+
         res.json({ images });
     } catch (error) {
         res.status(500).json({ error: error.message });
@@ -129,14 +134,14 @@ app.get('/download/:idimage', (req, res) => {
     try {
         const { idimage } = req.params;
         const files = fs.readdirSync(uploadsDir);
-        
+
         // Find the file that starts with the provided ID
         const targetFile = files.find(file => file.startsWith(idimage));
-        
+
         if (!targetFile) {
             return res.status(404).json({ error: 'Image not found' });
         }
-        
+
         const filePath = path.join(uploadsDir, targetFile);
         res.download(filePath);
     } catch (error) {
@@ -149,26 +154,26 @@ app.get('/image/:idimage', (req, res) => {
     try {
         const { idimage } = req.params;
         const files = fs.readdirSync(uploadsDir);
-        
+
         // Find the file that starts with the provided ID
         const targetFile = files.find(file => file.startsWith(idimage));
-        
+
         if (!targetFile) {
             return res.status(404).json({ error: 'Image not found' });
         }
-        
+
         // Construct full path ensuring we use uploads/images directory
         const filePath = path.join(uploadsDir, targetFile);
-        
+
         // Verify file exists
         if (!fs.existsSync(filePath)) {
             return res.status(404).json({ error: 'Image file not found on server' });
         }
-        
+
         // Determine the content type based on file extension
         const extension = path.extname(targetFile).toLowerCase();
         let contentType = 'application/octet-stream'; // default
-        
+
         switch (extension) {
             case '.jpg':
             case '.jpeg':
@@ -187,10 +192,10 @@ app.get('/image/:idimage', (req, res) => {
                 contentType = 'image/svg+xml';
                 break;
         }
-        
+
         // Set content type header
         res.setHeader('Content-Type', contentType);
-        
+
         // Stream the file to the response
         const stream = fs.createReadStream(filePath);
         stream.on('error', (err) => {
@@ -209,17 +214,17 @@ app.delete('/delete/:idimage', (req, res) => {
     try {
         const { idimage } = req.params;
         const files = fs.readdirSync(uploadsDir);
-        
+
         // Find the file that starts with the provided ID
         const targetFile = files.find(file => file.startsWith(idimage));
-        
+
         if (!targetFile) {
             return res.status(404).json({ error: 'Image not found' });
         }
-        
+
         const filePath = path.join(uploadsDir, targetFile);
         fs.unlinkSync(filePath);
-        
+
         res.json({ message: 'Image deleted successfully' });
     } catch (error) {
         res.status(500).json({ error: error.message });
